@@ -8,7 +8,7 @@ pytest-mock>=3.8.0
 # Test utilities
 pytest-cov>=4.0.0          # Coverage reporting
 pytest-xdist>=3.0.0        # Parallel test execution  
-pytest-timeout>=2.1.0      # Test timeout handling
+pytest-timeout>=2.4.0      # Test timeout handling
 pytest-benchmark>=4.0.0    # Performance benchmarking
 pytest-html>=3.1.0         # HTML test reports
 
