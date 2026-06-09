@@ -31,4 +31,4 @@ mypy>=1.0.0                # Type checking
 # doctest is part of Python standard library - no need to install
 
 # Test data and fixtures
-Pillow>=9.0.0              # Image processing for test assets
+Pillow>=11.3.0              # Image processing for test assets
