@@ -18,7 +18,7 @@ freezegun>=1.2.0           # Time/date mocking
 factory-boy>=3.2.0         # Test data generation
 
 # Performance monitoring
-psutil>=5.9.0              # System/process monitoring
+psutil>=7.2.2              # System/process monitoring
 memory-profiler>=0.60.0    # Memory usage profiling
 
 # Code quality (optional, for CI/CD)
