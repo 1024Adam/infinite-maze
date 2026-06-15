@@ -2,7 +2,7 @@
 # Install with: pip install -r requirements-test.txt
 
 # Core testing framework
-pytest>=7.0.0
+pytest>=8.4.2
 pytest-mock>=3.8.0
 
 # Test utilities
