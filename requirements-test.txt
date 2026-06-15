@@ -15,7 +15,7 @@ pytest-html>=3.1.0         # HTML test reports
 # Mock and testing utilities
 responses>=0.23.0          # HTTP request mocking
 freezegun>=1.2.0           # Time/date mocking
-factory-boy>=3.2.0         # Test data generation
+factory-boy>=3.3.3         # Test data generation
 
 # Performance monitoring
 psutil>=7.2.2              # System/process monitoring
