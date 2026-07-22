@@ -3,19 +3,19 @@
 
 # Core testing framework
 pytest>=8.4.2
-pytest-mock>=3.8.0
+pytest-mock>=3.15.1
 
 # Test utilities
 pytest-cov>=7.1.0          # Coverage reporting
 pytest-xdist>=3.0.0        # Parallel test execution  
 pytest-timeout>=2.4.0      # Test timeout handling
-pytest-benchmark>=4.0.0    # Performance benchmarking
+pytest-benchmark>=5.2.3    # Performance benchmarking
 pytest-html>=3.1.0         # HTML test reports
 
 # Mock and testing utilities
 responses>=0.23.0          # HTTP request mocking
 freezegun>=1.2.0           # Time/date mocking
-factory-boy>=3.2.0         # Test data generation
+factory-boy>=3.3.3         # Test data generation
 
 # Performance monitoring
 psutil>=7.2.2              # System/process monitoring
