@@ -24,7 +24,7 @@ memory-profiler>=0.61.0    # Memory usage profiling
 # Code quality (optional, for CI/CD)
 flake8>=5.0.0              # Code linting
 black>=22.0.0              # Code formatting
-isort>=5.10.0              # Import sorting
+isort>=8.0.1              # Import sorting
 mypy>=1.0.0                # Type checking
 
 # Documentation testing (optional)
