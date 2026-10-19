@@ -2,33 +2,33 @@
 # Install with: pip install -r requirements-test.txt
 
 # Core testing framework
-pytest>=7.0.0
-pytest-mock>=3.8.0
+pytest>=9.1.1
+pytest-mock>=3.15.1
 
 # Test utilities
-pytest-cov>=4.0.0          # Coverage reporting
-pytest-xdist>=3.0.0        # Parallel test execution  
-pytest-timeout>=2.1.0      # Test timeout handling
-pytest-benchmark>=4.0.0    # Performance benchmarking
-pytest-html>=3.1.0         # HTML test reports
+pytest-cov>=7.1.0          # Coverage reporting
+pytest-xdist>=3.8.0        # Parallel test execution  
+pytest-timeout>=2.4.0      # Test timeout handling
+pytest-benchmark>=5.2.3    # Performance benchmarking
+pytest-html>=4.2.0         # HTML test reports
 
 # Mock and testing utilities
 responses>=0.23.0          # HTTP request mocking
-freezegun>=1.2.0           # Time/date mocking
-factory-boy>=3.2.0         # Test data generation
+freezegun>=1.5.5           # Time/date mocking
+factory-boy>=3.3.3         # Test data generation
 
 # Performance monitoring
-psutil>=5.9.0              # System/process monitoring
-memory-profiler>=0.60.0    # Memory usage profiling
+psutil>=7.2.2              # System/process monitoring
+memory-profiler>=0.61.0    # Memory usage profiling
 
 # Code quality (optional, for CI/CD)
 flake8>=5.0.0              # Code linting
-black>=22.0.0              # Code formatting
-isort>=5.10.0              # Import sorting
+black>=26.3.1              # Code formatting
+isort>=8.0.1              # Import sorting
 mypy>=1.0.0                # Type checking
 
 # Documentation testing (optional)
 # doctest is part of Python standard library - no need to install
 
 # Test data and fixtures
-Pillow>=9.0.0              # Image processing for test assets
+Pillow>=12.3.0              # Image processing for test assets
