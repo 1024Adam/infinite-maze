@@ -13,7 +13,7 @@ pytest-benchmark>=5.2.3    # Performance benchmarking
 pytest-html>=4.2.0         # HTML test reports
 
 # Mock and testing utilities
-responses>=0.23.0          # HTTP request mocking
+responses>=0.26.3          # HTTP request mocking
 freezegun>=1.5.5           # Time/date mocking
 factory-boy>=3.3.3         # Test data generation
 
