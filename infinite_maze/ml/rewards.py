@@ -28,6 +28,9 @@ def compute_reward(
     bfs_action: int = -1,
     phase: int = 1,
     player=None,
+    recent_actions=None,
+    recent_x_positions=None,
+    blocked_right: bool = False,
 ) -> float:
     """Return the shaped reward for one environment step.
 
@@ -53,6 +56,12 @@ def compute_reward(
     player : Player, optional
         Live player instance. Used for vertical boundary penalty in Phase 1-2.
         Pass None to skip boundary-awareness reward.
+    recent_actions : deque | None
+        Recent action history from the environment. Used in Phase 3+ to penalise
+        LEFT/RIGHT alternation loops (A-B-A).
+    recent_x_positions : deque | None
+        Recent x-position history from the environment. Used in Phase 3+ to
+        penalise repeated UP behavior that does not produce rightward progress.
 
     Returns
     -------
@@ -120,6 +129,40 @@ def compute_reward(
     # BFS curriculum bonus (Phase 3+): small bonus when action matches BFS-optimal move
     if phase >= 3 and bfs_action >= 0 and action == bfs_action:
         reward += float(_ML["REWARD_BFS_MATCH"])
+
+    # Phase 3+: penalise A-B-A LEFT/RIGHT alternation (e.g. LEFT->RIGHT->LEFT).
+    # This suppresses retreat-advance looping without affecting single corrective moves.
+    if (
+        phase >= 3
+        and recent_actions is not None
+        and len(recent_actions) >= 2
+        and action in (LEFT, RIGHT)
+    ):
+        prev_action = recent_actions[-1]
+        prev_prev_action = recent_actions[-2]
+        if (
+            prev_prev_action == action
+            and prev_action in (LEFT, RIGHT)
+            and prev_action != action
+        ):
+            reward += float(_ML["REWARD_LR_ALTERNATION_PENALTY"])
+
+    # Phase 3+: penalise DOWN when RIGHT is available (asymmetric incentive:
+    # prefer RIGHT > DOWN > UP in escape order). This breaks DOWN-dominated local optima.
+    if phase >= 3 and action == DOWN and not blocked_right:
+        reward += float(_ML["REWARD_PHASE3_UP_NO_PROGRESS_PENALTY"])  # -0.1 penalty
+
+    # Phase 3+: penalise vertical bias when it is not translating into rightward progress.
+    if (
+        phase >= 3
+        and action in (UP, DOWN)
+        and recent_x_positions is not None
+        and len(recent_x_positions) >= int(_ML["PHASE3_UP_NO_PROGRESS_WINDOW"])
+    ):
+        x_delta = float(recent_x_positions[-1] - recent_x_positions[0])
+        min_delta = float(_ML["PHASE3_UP_NO_PROGRESS_MIN_DELTA"])
+        if x_delta < min_delta:
+            reward += float(_ML["REWARD_PHASE3_UP_NO_PROGRESS_PENALTY"])
 
     # Vertical boundary awareness (Phase 1-2 only): discourage getting stuck at top/bottom walls.
     # This reinforces what the wall-grid already shows but accelerates learning in early phases.
@@ -191,6 +234,36 @@ def phase3_shaping(
             bonus += float(_ML["REWARD_PHASE3_PROGRESS_ESCAPE"])
 
     return bonus
+
+
+def phase4_direction_shaping(
+    action: int,
+    gap_offset: float,
+    blocked_right: bool,
+) -> float:
+    """Return Phase 4 directional bonus/penalty for vertical choice.
+
+    When RIGHT is blocked, encourage choosing vertical direction that aligns
+    with the nearest right-facing gap:
+
+      - gap_offset < 0.5  -> prefer UP
+      - gap_offset > 0.5  -> prefer DOWN
+
+    A small neutral band around 0.5 avoids noisy penalties when the gap is
+    effectively level with the player.
+    """
+    if not blocked_right or action not in (UP, DOWN):
+        return 0.0
+
+    neutral = float(_ML["PHASE4_GAP_NEUTRAL_BAND"])
+    if abs(gap_offset - 0.5) <= neutral:
+        return 0.0
+
+    gap_above = gap_offset < 0.5
+    correct_action = UP if gap_above else DOWN
+    if action == correct_action:
+        return float(_ML["REWARD_PHASE4_GAP_DIRECTION_MATCH"])
+    return float(_ML["REWARD_PHASE4_GAP_DIRECTION_MISMATCH"])
 
 
 def urgency_scaled_terminal(game) -> float:

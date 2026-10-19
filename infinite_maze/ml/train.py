@@ -190,8 +190,8 @@ def _parse_args(argv=None):
     p.add_argument("--n-steps", type=int, default=512)
     p.add_argument("--batch-size", type=int, default=64)
     p.add_argument("--n-epochs", type=int, default=10)
-    p.add_argument("--ent-coef", type=float, default=0.01)
-    p.add_argument("--clip-range", type=float, default=0.15)
+    p.add_argument("--ent-coef", type=float, default=0.035)
+    p.add_argument("--clip-range", type=float, default=0.10)
 
     # Callbacks
     p.add_argument(

@@ -615,9 +615,9 @@ def get_obs(
 ) -> np.ndarray:
     """Encode the current game state as a flat float32 array.
 
-    Returns shape (56,) by default, or (53,) when ``legacy=True``.
+    Returns shape (57,) by default, or (54,) when ``legacy=True``.
     Use ``legacy=True`` to load models trained before the history features
-    (indices 13–15) were added.
+    (indices 13–15) and gap offset (index 16) were added.
 
     All values are normalised to [0.0, 1.0].
 
@@ -657,7 +657,8 @@ def get_obs(
     [13]    recent action repeat ratio (windowed)
     [14]    signed x-progress over recent window, mapped to [0, 1]
     [15]    blocked-right persistence ratio (windowed)
-    [16..55] local wall grid — GRID_COLS × GRID_ROWS × 2 binary features
+    [16]    nearest right-facing gap offset (< 0.5 = above, > 0.5 = below)
+    [17..56] local wall grid — GRID_COLS × GRID_ROWS × 2 binary features
     """
     ml = _ML
     max_scan = ml["MAX_WALL_SCAN_DIST"]
@@ -681,6 +682,9 @@ def get_obs(
         blocked_persistence = sum(float(v) for v in recent_blocked_right) / float(
             len(recent_blocked_right)
         )
+
+    # Phase 4: gap offset for directional navigation
+    gap_offset = nearest_right_gap_offset(player, lines, game)
 
     scalars = np.array(
         [
@@ -716,11 +720,13 @@ def get_obs(
             np.clip(signed_progress, 0.0, 1.0),
             # [15] blocked-right persistence ratio
             np.clip(blocked_persistence, 0.0, 1.0),
+            # [16] nearest right-facing gap offset
+            np.clip(gap_offset, 0.0, 1.0),
         ],
         dtype=np.float32,
     )
     if legacy:
-        # Drop indices 13-15 (action_repeat, x_progress, blocked_persistence)
+        # Drop indices 13-16 (action_repeat, x_progress, blocked_persistence, gap_offset)
         # to produce the original (53,) observation shape.
         scalars = scalars[:13]
     return np.concatenate([scalars, get_wall_grid(player, lines)])

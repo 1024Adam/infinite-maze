@@ -4,7 +4,7 @@ Headless-safe: never calls pygame.display.set_mode(), pygame.display.flip(),
 or any rendering method. Drives the game step-by-step through direct state
 manipulation — the live engine loop (core/engine.py) is never imported or used.
 
-Observation space: Box(56,) float32, all values in [0.0, 1.0].
+Observation space: Box(57,) float32, all values in [0.0, 1.0].
 Action space:      Discrete(5) mapping to config.MOVEMENT_CONSTANTS.
 """
 
@@ -27,7 +27,7 @@ from .features import (
     nearest_right_gap_offset,
     bfs_optimal_action,
 )
-from .rewards import compute_reward, phase3_shaping
+from .rewards import compute_reward, phase3_shaping, phase4_direction_shaping
 
 _ML = config.ML_CONFIG
 _MC = config.MOVEMENT_CONSTANTS
@@ -60,7 +60,7 @@ class InfiniteMazeEnv(gym.Env):
 
         self.action_space = spaces.Discrete(5)
         self.observation_space = spaces.Box(
-            low=0.0, high=1.0, shape=(56,), dtype=np.float32
+            low=0.0, high=1.0, shape=(57,), dtype=np.float32
         )
 
         # Game objects — initialised on first reset()
@@ -73,6 +73,8 @@ class InfiniteMazeEnv(gym.Env):
         self._consecutive_blocked = 0
         self._consecutive_vertical = 0
         self._consecutive_vertical_any = 0
+        self._consecutive_up = 0
+        self._consecutive_down = 0
         self._last_vertical_action = -1
         self._corner_escape_dir = -1
         self._corner_escape_progress = 0
@@ -112,6 +114,8 @@ class InfiniteMazeEnv(gym.Env):
         self._consecutive_blocked = 0
         self._consecutive_vertical = 0
         self._consecutive_vertical_any = 0
+        self._consecutive_up = 0
+        self._consecutive_down = 0
         self._last_vertical_action = -1
         self._corner_escape_dir = -1
         self._corner_escape_progress = 0
@@ -141,7 +145,7 @@ class InfiniteMazeEnv(gym.Env):
 
         Returns
         -------
-        obs : np.ndarray  shape (56,) float32
+        obs : np.ndarray  shape (57,) float32
         reward : float
         terminated : bool  True when player is pushed past X_MIN by pace
         truncated : bool   True when score >= EPISODE_SCORE_CAP
@@ -252,9 +256,13 @@ class InfiniteMazeEnv(gym.Env):
             else:
                 new_vertical = 1
             new_vertical_any = self._consecutive_vertical_any + 1
+            new_up = (self._consecutive_up + 1) if action == UP else 0
+            new_down = (self._consecutive_down + 1) if action == DOWN else 0
         else:
             new_vertical = 0
             new_vertical_any = 0
+            new_up = 0
+            new_down = 0
 
         # -- 10c. Phase 3+ blocked-right vertical stalling detector --
         if self.phase >= 3 and blocked_right and action in (UP, DOWN):
@@ -284,6 +292,9 @@ class InfiniteMazeEnv(gym.Env):
                 bfs_action=bfs_action,
                 phase=self.phase,
                 player=self._player,
+                recent_actions=self._recent_actions,
+                recent_x_positions=self._recent_x_positions,
+                blocked_right=blocked_right,
             )
         )
 
@@ -294,6 +305,16 @@ class InfiniteMazeEnv(gym.Env):
         # Penalise any vertical loitering regardless of direction (breaks UP/DOWN oscillation)
         if new_vertical_any > _ML["CONSECUTIVE_VERTICAL_ANY_CAP"]:
             reward += float(_ML["REWARD_CONSECUTIVE_VERTICAL_ANY_PENALTY"])
+
+        # Penalise excessively long UP-only runs that indicate vertical drift.
+        if self.phase >= 4 and new_up > int(_ML["PHASE4_CONSECUTIVE_UP_CAP"]):
+            reward += float(_ML["REWARD_PHASE4_CONSECUTIVE_UP_PENALTY"])
+        elif self.phase >= 3 and new_up > int(_ML["PHASE3_CONSECUTIVE_UP_CAP"]):
+            reward += float(_ML["REWARD_PHASE3_CONSECUTIVE_UP_PENALTY"])
+
+        # Penalise excessively long DOWN-only runs that indicate vertical drift.
+        if self.phase >= 3 and new_down > int(_ML["PHASE3_CONSECUTIVE_DOWN_CAP"]):
+            reward += float(_ML["REWARD_PHASE3_CONSECUTIVE_DOWN_PENALTY"])
 
         # Penalise rapid vertical direction flips (UP -> DOWN or DOWN -> UP)
         # This encourages sustained directional commitment rather than alternation
@@ -306,6 +327,12 @@ class InfiniteMazeEnv(gym.Env):
             stuck_window = int(_ML["PHASE3_STUCK_VERTICAL_WINDOW"])
             if self._blocked_vertical_same_y_streak > stuck_window:
                 reward += float(_ML["REWARD_PHASE3_STUCK_VERTICAL"])
+
+        # Phase 4: extra penalty when RIGHT remains blocked for too long.
+        if self.phase >= 4 and blocked_right:
+            blocked_cap = int(_ML["PHASE4_BLOCKED_RIGHT_CAP"])
+            if new_blocked > blocked_cap:
+                reward += float(_ML["REWARD_PHASE4_BLOCKED_RIGHT_STREAK"])
 
         # Penalise repeated DO_NOTHING when blocked-right (Phase 3+ idle exploit)
         if self.phase >= 3 and blocked_right:
@@ -349,6 +376,8 @@ class InfiniteMazeEnv(gym.Env):
         self._consecutive_blocked = new_blocked
         self._consecutive_vertical = new_vertical
         self._consecutive_vertical_any = new_vertical_any
+        self._consecutive_up = new_up
+        self._consecutive_down = new_down
         self._last_vertical_action = (
             action if action in (UP, DOWN) else self._last_vertical_action
         )
@@ -370,6 +399,13 @@ class InfiniteMazeEnv(gym.Env):
                 blocked_right,
                 prev_x,
                 player.getX(),
+            )
+
+        if self.phase >= 4:
+            reward += phase4_direction_shaping(
+                action,
+                new_gap,
+                blocked_right,
             )
 
         self._prev_gap_offset = new_gap

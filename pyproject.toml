@@ -28,6 +28,7 @@ packages = [{include = "infinite_maze"}]
 [tool.poetry.dependencies]
 python = "^3.8.1"
 pygame = "^2.5.0"
+tensorboard = "^2.13"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.8.0"

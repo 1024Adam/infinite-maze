@@ -76,8 +76,8 @@ def watch(
     ----------
     legacy_obs : bool
         When True, pass ``legacy=True`` to ``get_obs()`` so the observation
-        shape is (53,) instead of (56,). Use this to watch models trained
-        before the history features (indices 13-15) were added.
+        shape is (54,) instead of (57,). Use this to watch models trained
+        before the history features (indices 13-15) and gap offset (index 16) were added.
     """
     if legacy_obs:
         # Load without env-validation — the network expects (53,) inputs,

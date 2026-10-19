@@ -35,7 +35,7 @@ All scripts run headlessly by default (no display required). `watch.py` is the o
 
 ## Observation Space
 
-Each step produces a flat `float32` array of shape `(53,)`:
+Each step produces a flat `float32` array of shape `(57,)` (Phase 4+) or `(54,)` (legacy models):
 
 | Index | Feature | Range |
 |---|---|---|
@@ -52,9 +52,18 @@ Each step produces a flat `float32` array of shape `(53,)`:
 | 10 | Current pace (normalised) | [0, 1] |
 | 11 | Distance from death boundary (normalised) | [0, 1] |
 | 12 | Consecutive ticks blocked right (normalised) | [0, 1] |
-| 13–52 | Local wall grid — 4 cols × 5 rows × 2 features | 0 or 1 |
+| 13 | Action repeat ratio (windowed) | [0, 1] |
+| 14 | X-progress over recent window (windowed) | [0, 1] |
+| 15 | Blocked-right persistence ratio (windowed) | [0, 1] |
+| 16 | **Nearest right-facing gap offset** (Phase 4+) | [0, 1] |
+| 17–56 | Local wall grid — 4 cols × 5 rows × 2 features | 0 or 1 |
 
-The wall grid (`obs[13..52]`) encodes the maze structure in a 4-column × 5-row window centred on the player and scanning rightward. For each cell two binary features are stored in order: **`has_right_wall`** (vertical wall on the cell's right edge) and **`has_bottom_wall`** (horizontal wall on the cell's bottom edge). Columns 0–3 span one maze cell (22 px) each, giving ~88 px of lookahead. Rows −2 to +2 are centred on the player's row.
+**Gap offset feature (index 16):** Indicates the vertical direction to the nearest Y position where a RIGHT move would succeed:
+- `< 0.5` → gap is **above** the player (move UP to align)
+- `= 0.5` → gap is at current Y or not found within scan radius
+- `> 0.5` → gap is **below** the player (move DOWN to align)
+
+The wall grid (`obs[17..56]`) encodes the maze structure in a 4-column × 5-row window centred on the player and scanning rightward. For each cell two binary features are stored in order: **`has_right_wall`** (vertical wall on the cell's right edge) and **`has_bottom_wall`** (horizontal wall on the cell's bottom edge). Columns 0–3 span one maze cell (22 px) each, giving ~88 px of lookahead. Rows −2 to +2 are centred on the player's row.
 
 ---
 
@@ -82,7 +91,9 @@ Training is split into phases of increasing complexity. The `--phase` flag passe
 | 1 | Basic survival, rightward bias | `--timesteps 100000` |
 | 2 | Encounter pace pressure | `--timesteps 200000`, `--ent-coef 0.02` |
 | 3 | Learn gap navigation (phase3_shaping active) | `--timesteps 750000`, `--n-envs 4`, `--gamma 0.995` |
-| 4 | Curriculum domain randomisation | `--timesteps 1000000`, `--gamma 0.999` |
+| 4 | **Gap-directed navigation with explicit gap offset** | `--timesteps 200000`, `--learning-rate 1e-4`, `--clip-range 0.1` |
+
+**Phase 4 breaking change:** Phase 4 introduces the gap offset feature (observation index 16), increasing the observation space from (56,) to (57,). Models trained before Phase 4 cannot be loaded without using `legacy=True` in evaluation scripts.
 
 ---
 
