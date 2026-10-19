@@ -340,7 +340,7 @@ class InfiniteMazeEnv(gym.Env):
                 self._blocked_do_nothing_streak += 1
             else:
                 self._blocked_do_nothing_streak = 0
-            
+
             loop_window = int(_ML["PHASE3_DO_NOTHING_LOOP_WINDOW"])
             if self._blocked_do_nothing_streak > loop_window:
                 reward += float(_ML["REWARD_PHASE3_DO_NOTHING_LOOP"])

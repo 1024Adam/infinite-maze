@@ -218,15 +218,17 @@ def _parse_args(argv=None):
         action="store_true",
         default=False,
         help="Use 53-feature observation (no history features). Required for "
-             "models trained before the action-repeat/x-progress/blocked-right "
-             "history features were added.",
+        "models trained before the action-repeat/x-progress/blocked-right "
+        "history features were added.",
     )
     return p.parse_args(argv)
 
 
 def main(argv=None):
     args = _parse_args(argv)
-    watch(args.model, args.episodes, args.phase, args.delay, args.device, args.legacy_obs)
+    watch(
+        args.model, args.episodes, args.phase, args.delay, args.device, args.legacy_obs
+    )
 
 
 if __name__ == "__main__":

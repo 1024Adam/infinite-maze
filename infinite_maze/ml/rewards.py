@@ -168,10 +168,10 @@ def compute_reward(
     # This reinforces what the wall-grid already shows but accelerates learning in early phases.
     if phase <= 2 and player is not None:
         y_pos = player.getY()
-        y_min = game.Y_MIN if hasattr(game, 'Y_MIN') else 40
-        y_max = game.Y_MAX if hasattr(game, 'Y_MAX') else 450
+        y_min = game.Y_MIN if hasattr(game, "Y_MIN") else 40
+        y_max = game.Y_MAX if hasattr(game, "Y_MAX") else 450
         boundary_threshold = float(_ML["Y_BOUNDARY_THRESHOLD"])
-        
+
         if y_pos < y_min + boundary_threshold or y_pos > y_max - boundary_threshold:
             reward += float(_ML["REWARD_APPROACH_Y_BOUNDARY"])
 
