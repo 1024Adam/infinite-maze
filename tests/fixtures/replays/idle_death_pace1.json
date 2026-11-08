@@ -1,0 +1,1 @@
+{"version": 1, "seed": 2, "start_pace": 1, "maze": {"rows": 15, "cols": 20, "cell": 22}, "intents": [[0, 0, 10]], "expected": {"score": 0, "ticks": 10, "pace": 1, "player": [79, 223], "terminated": true}}

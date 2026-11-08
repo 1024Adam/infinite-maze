@@ -68,4 +68,4 @@ migration_backup/
 plans/
 
 # Local game recordings (committed regression replays live in tests/fixtures/replays/)
-replays/
+/replays/
