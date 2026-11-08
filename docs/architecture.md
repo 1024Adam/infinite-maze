@@ -105,6 +105,7 @@ infinite_maze/
 `Simulation.step(intent)` performs, in order: tick and pace update, horizontal then vertical movement with collision, scroll every `SCROLL_INTERVAL_TICKS` ticks, death check (`x < X_MIN`), `X_MAX` clamp, `Y` clamp, recycling of passed lines, and the optional `max_steps` truncation check. It returns a `StepResult`.
 
 - **Seeded**: a game is reproducible from `(seed, intents)`. An explicit seed regenerates the same maze on restart; no seed means a new random seed each episode.
+- **Performance**: `Line.generateMaze` tracks cell-set labels incrementally (about 5 ms per maze instead of about 780 ms) while keeping the exact random draw sequence and output of the original algorithm; `tests/unit/test_maze_equivalence.py` compares it with the frozen reference in `tests/fixtures/legacy_maze.py`. `_recycleLines` only scans for the far edge when a line actually needs recycling. `Simulation.getScrollOffset()` exposes the accumulated scroll so external code (the oracle in `training/`) can convert screen x to world x.
 - **Tick-based time**: pace advances every `PACE_UPDATE_TICKS` (`PACE_UPDATE_INTERVAL * FPS` = 1800) ticks; this is a frame count, not a wall-clock duration, so the real time between increases depends on the achieved frame rate, scrolling happens when `ticks % SCROLL_INTERVAL_TICKS == 0`. There is no sleep and no wall clock, so simulations run as fast as the CPU allows. Paused frames do not call `step()` and therefore do not advance ticks.
 - **Shared by**: human play (`maze()`), `controlled_run()`, replays and tests.
 

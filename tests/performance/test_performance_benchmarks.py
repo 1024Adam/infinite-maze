@@ -761,5 +761,6 @@ class TestSimulationThroughput:
             duration = time.perf_counter() - start
 
         delay.assert_not_called()
-        # Real play paces frames at ~16ms, so 10k frames would take ~160s.
-        assert duration < 60.0
+        # Real play paces frames at ~16ms, so 10k frames would take ~160s. Measured
+        # about 0.7 s (python -m training.benchmark); the limit is roughly 4x that.
+        assert duration < 3.0

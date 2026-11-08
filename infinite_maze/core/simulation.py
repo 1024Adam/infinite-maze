@@ -60,6 +60,7 @@ class Simulation:
         self.ticks = 0
         self.steps = 0
         self.terminated = False
+        self.scrollOffset = 0
         self.lines: List[Line] = []
         self.reset()
 
@@ -82,6 +83,7 @@ class Simulation:
         self.ticks = 0
         self.steps = 0
         self.terminated = False
+        self.scrollOffset = 0
         self.lines = Line.generateMaze(
             self.game,
             config.MAZE_ROWS,
@@ -157,6 +159,17 @@ class Simulation:
     def getLines(self) -> List[Line]:
         return self.lines
 
+    def getScrollOffset(self) -> int:
+        """Total pixels the lines have scrolled left since ``reset()``.
+
+        ``worldX = screenX + getScrollOffset()`` is constant for a wall as the
+        world scrolls, and the player's world x is ``player.getX() + offset``.
+        Recycling moves a passed wall one maze tile (a period of
+        ``2 * max(MAZE_ROWS, 3) * MAZE_CELL_SIZE`` pixels) to the right without
+        changing the offset, so a wall's world x is well defined modulo that period.
+        """
+        return self.scrollOffset
+
     def isTerminated(self) -> bool:
         return self.terminated
 
@@ -181,22 +194,27 @@ class Simulation:
 
     def _scrollLines(self, amount: int) -> None:
         """Shift every wall left by ``amount`` pixels."""
+        self.scrollOffset += amount
         for line in self.lines:
             line.setXStart(line.getXStart() - amount)
             line.setXEnd(line.getXEnd() - amount)
 
     def _recycleLines(self) -> None:
         """Move lines that have been passed to the far right edge of the maze."""
+        threshold = config.PLAYER_START_X
+        passed = [line for line in self.lines if line.start[0] < threshold]
+        if not passed:
+            return
+        # The target is the far edge before any line moves, as before.
         xMax = Line.getXMax(self.lines)
-        for line in self.lines:
+        for line in passed:
             start = line.getXStart()
             end = line.getXEnd()
-            if start < config.PLAYER_START_X:
-                line.setXStart(xMax)
-                if start == end:
-                    line.setXEnd(xMax)
-                else:
-                    line.setXEnd(xMax + config.MAZE_CELL_SIZE)
+            line.setXStart(xMax)
+            if start == end:
+                line.setXEnd(xMax)
+            else:
+                line.setXEnd(xMax + config.MAZE_CELL_SIZE)
 
     def _isBlocked(self, direction: int) -> bool:
         """Whether the player is blocked from moving one step in ``direction``.

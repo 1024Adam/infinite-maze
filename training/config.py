@@ -38,12 +38,13 @@ ORACLE_CACHE_FIELDS: int = 64  # BFS distance fields kept per episode
 ORACLE_STATS_MAX_PACE: int = 6  # oracle_stats sweeps start_pace 0..this
 TORCH_THREADS: int = 1  # keeps CPU PPO reproducible and leaves cores to the envs
 
-# Expert ladder thresholds (rungs 2-4). Provisional until the oracle ceilings
-# (python -m training.oracle_stats) say what is achievable.
+# Expert ladder thresholds (rungs 2-4), set from the oracle ceilings at
+# start_pace 0, max_steps 3000 (oracle mean score about 1,475, heuristic about 190,
+# oracle final pace 1, so rung 4 can only ask for pace 1 at that horizon).
 EXPERT_LADDER = {
     "r2": 0.5,  # rung 2: mean score >= r2 * oracle mean score
     "r3": 0.9,  # rung 3: mean score >= r3 * oracle mean score
-    "pace": 3,  # rung 4: mean final pace >= pace ...
+    "pace": 1,  # rung 4: mean final pace >= pace ...
     "max_death_rate": 0.1,  # ... with death rate <= this
 }
 RUNS_DIR = Path(__file__).parent / "runs"

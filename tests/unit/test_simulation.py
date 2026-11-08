@@ -398,3 +398,53 @@ class TestSeedVisibility:
         with patch.object(Line, "generateMaze", return_value=[]):
             sim.reset(seed=9)
         assert sim.game.isSeedVisible()
+
+
+class TestScrollOffset:
+    """``getScrollOffset`` converts screen x to a stable world x."""
+
+    def test_starts_at_zero_and_resets(self):
+        sim = Simulation(seed=1, max_steps=None, start_pace=1)
+        for _ in range(30):
+            sim.step((0, 0))
+        assert sim.getScrollOffset() == 3
+
+        sim.reset()
+
+        assert sim.getScrollOffset() == 0
+
+    def test_world_x_of_a_wall_is_constant_while_scrolling(self):
+        wall = vertical(500, 100, 300)
+        sim = makeSim([wall], start_pace=2)
+        place(sim, 100, 200)
+        world = wall.getXStart() + sim.getScrollOffset()
+
+        for _ in range(60):
+            sim.step((0, 0))
+            assert wall.getXStart() + sim.getScrollOffset() == world
+
+    def test_player_pinned_at_x_max_scrolls_the_world(self):
+        sim = makeSim([vertical(900, 100, 300)])
+        place(sim, sim.game.X_MAX, 200)
+
+        sim.step((1, 0))
+
+        assert sim.getScrollOffset() == sim.player.getSpeed()
+
+    def test_recycling_moves_walls_by_whole_tiles_without_changing_the_offset(self):
+        sim = Simulation(seed=3, max_steps=None, start_pace=3)
+        tracked = sim.getLines()[0]
+        startWorld = tracked.getXStart()
+        period = (
+            2
+            * max(config.MAZE_ROWS, 3)
+            * config.MAZE_CELL_SIZE
+        )
+
+        for _ in range(400):
+            sim.step((0, 0))
+            if sim.isTerminated():
+                break
+
+        shift = tracked.getXStart() + sim.getScrollOffset() - startWorld
+        assert shift % period == 0

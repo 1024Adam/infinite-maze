@@ -1,7 +1,7 @@
 """Maze entities: wall segments (``Line``) and seedable maze generation."""
 
 import random
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..utils.config import config
 
@@ -151,29 +151,46 @@ class Line:
 
         # Create 'maze' structure
         # (will be complete when all 'cells' are connected to each other)
-        sets: List[int] = []
         if not lines:
             return lines
 
-        while len(sets) != 1:
-            length = len(lines)
-            lineNum = rng.randint(0, length - 1)
-            tempSideA = lines[lineNum].getSideA()
-            tempSideB = lines[lineNum].getSideB()
-            if tempSideA != tempSideB:
-                del lines[lineNum]
-                for line in lines:
-                    if line.getSideA() == tempSideB:
-                        line.setSideA(tempSideA)
-                    if line.getSideB() == tempSideB:
-                        line.setSideB(tempSideA)
-            sets = []
-            for line in lines:
-                tempSideA = line.getSideA()
-                tempSideB = line.getSideB()
-                if tempSideA not in sets:
-                    sets.append(tempSideA)
-                if tempSideB not in sets:
-                    sets.append(tempSideB)
+        # labelCounts[label] = how many (line, side) slots currently hold the
+        # label; a label is "present" while its count is positive. The maze is
+        # done when one distinct label remains, as in the original rescan.
+        labelCounts: Dict[int, int] = {}
+        labelLines: Dict[int, List[Line]] = {}
+        for line in lines:
+            for label in (line.getSideA(), line.getSideB()):
+                labelCounts[label] = labelCounts.get(label, 0) + 1
+            labelLines.setdefault(line.getSideA(), []).append(line)
+            if line.getSideB() != line.getSideA():
+                labelLines.setdefault(line.getSideB(), []).append(line)
+
+        while len(labelCounts) != 1:
+            lineNum = rng.randint(0, len(lines) - 1)
+            line = lines[lineNum]
+            keep = line.getSideA()
+            merge = line.getSideB()
+            if keep == merge:
+                continue
+            del lines[lineNum]
+            # The removed line's own slots leave the count.
+            for label in (keep, merge):
+                labelCounts[label] -= 1
+                if labelCounts[label] == 0:
+                    del labelCounts[label]
+            # Every remaining slot labelled ``merge`` becomes ``keep``. Entries of
+            # already-removed lines may linger in the lists; touching them is
+            # harmless because they are no longer part of the result.
+            movedCount = labelCounts.pop(merge, 0)
+            if movedCount:
+                labelCounts[keep] = labelCounts.get(keep, 0) + movedCount
+            merged = labelLines.setdefault(keep, [])
+            for other in labelLines.pop(merge, []):
+                if other.getSideA() == merge:
+                    other.setSideA(keep)
+                if other.getSideB() == merge:
+                    other.setSideB(keep)
+                merged.append(other)
 
         return lines

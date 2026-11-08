@@ -265,7 +265,10 @@ class RunCallback(BaseCallback):
             "timesteps": timesteps,
             "sets": {label: r.summary() for label, r in reports.items()},
         }
-        self.history.append(entry)
+        if final and self.history and self.history[-1]["timesteps"] == timesteps:
+            self.history[-1] = entry  # the scheduled eval already ran at this step
+        else:
+            self.history.append(entry)
 
         self.model.save(self.run_dir / "checkpoints" / f"step_{timesteps}")
         self.model.save(self.run_dir / "checkpoints" / "latest")

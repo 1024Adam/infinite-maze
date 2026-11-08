@@ -130,7 +130,9 @@ result = sim.step((1, 0))  # (dx, dy), each in {-1, 0, 1}
 - `__init__(seed=None, start_pace=config.START_PACE, max_steps=config.MAX_EPISODE_STEPS, game=None, player=None)`
 - `reset(seed=None)`: new episode. An explicit seed (here or in the constructor) is reused by later resets.
 - `step(intent) -> StepResult`
-- `getSeed()`, `getTicks()`, `getSteps()`, `getLines()`, `getClosestLineX()`, `isTerminated()`, `getState()`
+- `getSeed()`, `getTicks()`, `getSteps()`, `getLines()`, `getScrollOffset()`, `getClosestLineX()`, `isTerminated()`, `getState()`
+
+`getScrollOffset()` is the total pixels the lines have scrolled left since `reset()` (0 after a reset). `wallScreenX + getScrollOffset()` is constant for a wall as the world scrolls, and the player's world x is `player.getX() + getScrollOffset()`. Recycling moves a passed wall one maze tile (`2 * max(MAZE_ROWS, 3) * MAZE_CELL_SIZE` px) to the right without changing the offset, so world x is defined modulo that period.
 
 Discrete actions map to intents through `config.ACTION_TO_INTENT`.
 
