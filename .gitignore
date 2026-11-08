@@ -63,3 +63,6 @@ game_logs/
 
 # Migration backup
 migration_backup/
+
+# Development plans
+plans/
