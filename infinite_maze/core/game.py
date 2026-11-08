@@ -1,7 +1,7 @@
 """Game state: display, score, pace, seed and pause/over flags, plus HUD rendering."""
 
 import pygame
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from .clock import Clock
 from ..utils.config import config
@@ -65,6 +65,7 @@ class Game:
         self.score = 0
         self.seed = 0
         self.seedVisible = False
+        self.overlay: Optional[Callable[[pygame.Surface], None]] = None
 
         self.paused = False
         self.over = False
@@ -158,7 +159,14 @@ class Game:
             )
             self.screen.blit(scoreText, (100, config.TEXT_MARGIN))
 
+        if self.overlay is not None:
+            self.overlay(screen)
+
         pygame.display.flip()
+
+    def setOverlay(self, callback: Optional[Callable[[pygame.Surface], None]]) -> None:
+        """Set (or clear with None) a debug callback drawn on top of each frame."""
+        self.overlay = callback
 
     def printEndDisplay(self) -> None:
         """Show the "Continue? (y/n)" screen with the final score."""

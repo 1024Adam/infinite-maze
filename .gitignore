@@ -69,3 +69,6 @@ plans/
 
 # Local game recordings (committed regression replays live in tests/fixtures/replays/)
 /replays/
+
+# ML training run outputs (JSON reports, logs)
+training/runs/

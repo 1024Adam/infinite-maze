@@ -27,13 +27,13 @@ play:
 
 # Development commands
 format:
-    poetry run black infinite_maze/
+    poetry run black infinite_maze/ training/
 
 lint:
-    poetry run flake8 infinite_maze/
+    poetry run flake8 infinite_maze/ training/
 
 typecheck:
-    poetry run mypy infinite_maze/
+    poetry run mypy infinite_maze/ training/
 
 # Run all quality checks
 check: format lint typecheck

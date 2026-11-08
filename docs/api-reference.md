@@ -273,6 +273,10 @@ Toggles pause state and updates visual elements (colors, player sprite) to refle
 
 `getSeed()` / `setSeed(newSeed)` store the seed of the current episode. `setSeedVisible(bool)` / `isSeedVisible()` control whether the HUD shows it (`Simulation` enables it only for explicit seeds).
 
+###### Debug Overlay
+
+`setOverlay(callback: Optional[Callable[[pygame.Surface], None]])` registers a callback that `updateScreen()` calls with the screen after drawing the maze, HUD and borders and just before `pygame.display.flip()`. Pass `None` to remove it. Headless games never call it. The ML observation/reward overlay in [`training/`](../training/README.md) uses this hook.
+
 ###### Pace Management
 
 ```python
