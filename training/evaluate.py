@@ -14,12 +14,12 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from infinite_maze.core.replay import ReplayRecorder, saveReplay
 from infinite_maze.core.simulation import Simulation
-from infinite_maze.utils.config import config as game_config
 
 from . import config
 from .observation import build_observation
-from .policies import Policy, make_policy
+from .policies import Policy, PrivilegedPolicy, make_policy
 from .reward import RewardConfig, RewardFunction, load_reward_config
+from .stepping import repeat_action
 
 BASELINES = ("random", "right", "heuristic")
 
@@ -34,6 +34,7 @@ class EpisodeResult:
     total_return: float
     terminated: bool
     truncated: bool
+    pace: int = 0  # game pace when the episode ended
 
     def to_dict(self) -> Dict[str, Any]:
         """JSON form (``total_return`` is stored under the key ``return``)."""
@@ -51,6 +52,7 @@ class EvalReport:
     start_pace: int
     reward: RewardConfig
     episodes: List[EpisodeResult]
+    frame_skip: int = 1
 
     def returns(self) -> List[float]:
         """Return of every episode, in seed order."""
@@ -80,6 +82,7 @@ class EvalReport:
             "policy": self.policy,
             "max_steps": self.max_steps,
             "start_pace": self.start_pace,
+            "frame_skip": self.frame_skip,
             "reward": asdict(self.reward),
             "summary": self.summary(),
             "episodes": [episode.to_dict() for episode in self.episodes],
@@ -91,25 +94,27 @@ def _run_episode(
     sim: Simulation,
     reward: RewardFunction,
     recorder: Optional[ReplayRecorder] = None,
+    frame_skip: int = 1,
 ) -> EpisodeResult:
     """Play ``sim`` with ``policy`` until it terminates or is truncated."""
     policy.reset(sim.getSeed())
     total = 0.0
     while True:
-        action = policy.act(build_observation(sim))
-        intent = game_config.ACTION_TO_INTENT[action]
-        result = sim.step(intent)
-        if recorder is not None:
-            recorder.record(intent)
-        total += reward(result).total
-        if result.terminated or result.truncated:
+        if isinstance(policy, PrivilegedPolicy):
+            action = policy.act_privileged(sim)
+        else:
+            action = policy.act(build_observation(sim))
+        outcome = repeat_action(sim, action, reward, frame_skip, recorder)
+        total += outcome.reward
+        if outcome.terminated or outcome.truncated:
             return EpisodeResult(
                 seed=sim.getSeed(),
                 score=sim.game.getScore(),
                 steps=sim.getSteps(),
                 total_return=total,
-                terminated=result.terminated,
-                truncated=result.truncated,
+                terminated=outcome.terminated,
+                truncated=outcome.truncated,
+                pace=sim.game.getPace(),
             )
 
 
@@ -119,15 +124,19 @@ def evaluate(
     max_steps: int = config.EVAL_MAX_STEPS,
     start_pace: int = config.EVAL_START_PACE,
     reward: Optional[RewardConfig] = None,
+    frame_skip: int = 1,
 ) -> EvalReport:
     """Run ``policy`` once per seed and report the results.
 
-    Deterministic for a given policy, seeds and settings.
+    ``frame_skip`` repeats each chosen action for that many ticks (use the value a
+    model was trained with). Deterministic for a given policy, seeds and settings.
     """
     if not seeds:
         raise ValueError("seeds must not be empty")
     if max_steps <= 0:
         raise ValueError("max_steps must be positive so every episode ends")
+    if frame_skip < 1:
+        raise ValueError("frame_skip must be at least 1")
     rewardConfig = reward if reward is not None else RewardConfig()
     rewardConfig.validate(max_steps)
     rewardFunction = RewardFunction(rewardConfig)
@@ -137,8 +146,12 @@ def evaluate(
     for index, seed in enumerate(seeds):
         if index > 0:
             sim.reset(seed)
-        episodes.append(_run_episode(policy, sim, rewardFunction))
-    return EvalReport(policy.name, max_steps, start_pace, rewardConfig, episodes)
+        episodes.append(
+            _run_episode(policy, sim, rewardFunction, frame_skip=frame_skip)
+        )
+    return EvalReport(
+        policy.name, max_steps, start_pace, rewardConfig, episodes, frame_skip
+    )
 
 
 def record_replay(
@@ -147,11 +160,12 @@ def record_replay(
     max_steps: int = config.EVAL_MAX_STEPS,
     start_pace: int = config.EVAL_START_PACE,
     reward: Optional[RewardConfig] = None,
+    frame_skip: int = 1,
 ) -> Dict[str, Any]:
     """Re-run one episode and return it as a replay (watch it with the overlay)."""
     sim = Simulation(seed=seed, start_pace=start_pace, max_steps=max_steps)
     recorder = ReplayRecorder(seed, start_pace)
-    _run_episode(policy, sim, RewardFunction(reward), recorder)
+    _run_episode(policy, sim, RewardFunction(reward), recorder, frame_skip)
     return recorder.toReplay(sim.getState())
 
 
@@ -172,17 +186,40 @@ def format_table(reports: Sequence[EvalReport]) -> str:
     return "\n".join(rows)
 
 
+def build_policy(name: str, model_path: Optional[str] = None) -> Policy:
+    """Create a policy by CLI name (baselines, ``oracle`` or a saved ``model``)."""
+    if name == "oracle":
+        from .oracle import OraclePolicy
+
+        return OraclePolicy()
+    if name == "model":
+        if not model_path:
+            raise ValueError("--policy model requires --model PATH")
+        from .model_policy import ModelPolicy
+
+        return ModelPolicy.load(model_path)
+    return make_policy(name)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Create the CLI parser."""
     parser = argparse.ArgumentParser(
         prog="python -m training.evaluate",
-        description="Evaluate baseline policies on fixed seed sets.",
+        description="Evaluate policies on fixed seed sets.",
     )
     parser.add_argument(
         "--policy",
         default="all",
-        choices=list(BASELINES) + ["heuristic-raster", "all"],
-        help="'all' runs random, right and heuristic",
+        choices=list(BASELINES) + ["heuristic-raster", "oracle", "model", "all"],
+        help="'all' runs random, right and heuristic; 'oracle' is the privileged "
+        "solver; 'model' needs --model",
+    )
+    parser.add_argument("--model", default=None, help="SB3 model .zip for 'model'")
+    parser.add_argument(
+        "--frame-skip",
+        type=int,
+        default=1,
+        help="repeat each action this many ticks (use the training value)",
     )
     parser.add_argument(
         "--seeds", default="validation", choices=sorted(config.SEED_SETS)
@@ -214,14 +251,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     reports = []
     for name in names:
         report = evaluate(
-            make_policy(name), seeds, args.max_steps, args.start_pace, reward
+            build_policy(name, args.model),
+            seeds,
+            args.max_steps,
+            args.start_pace,
+            reward,
+            frame_skip=args.frame_skip,
         )
         reports.append(report)
         if args.worst_replay_dir:
             worst = report.worst_seed()
             path = Path(args.worst_replay_dir) / f"{name}-worst-seed{worst}.json"
             replay = record_replay(
-                make_policy(name), worst, args.max_steps, args.start_pace, reward
+                build_policy(name, args.model),
+                worst,
+                args.max_steps,
+                args.start_pace,
+                reward,
+                args.frame_skip,
             )
             saveReplay(replay, str(path))
             print(f"worst {name} episode (seed {worst}) written to {path}")

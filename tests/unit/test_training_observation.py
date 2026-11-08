@@ -3,6 +3,7 @@
 import pytest
 
 from infinite_maze.core.simulation import Simulation
+from infinite_maze.utils.config import config as game_config
 from tests.fixtures.training_helpers import (
     DOWN,
     IDLE,
@@ -14,7 +15,12 @@ from tests.fixtures.training_helpers import (
     vertical,
 )
 from training import config
-from training.observation import build_observation, window_origin
+from training.observation import (
+    build_observation,
+    flatten_observation,
+    observation_size,
+    window_origin,
+)
 
 CAP = config.OBS_RAY_CAP_PX
 CELL = config.OBS_GRID_CELL_PX
@@ -23,9 +29,7 @@ SIZE = config.OBS_GRID_SIZE
 
 def cells(obs):
     """Set of (row, col) raster cells that contain a wall."""
-    return {
-        (r, c) for r, row in enumerate(obs.grid) for c, v in enumerate(row) if v
-    }
+    return {(r, c) for r, row in enumerate(obs.grid) for c, v in enumerate(row) if v}
 
 
 class TestEmptyMaze:
@@ -174,3 +178,38 @@ class TestConfigurableWindow:
 
         assert len(obs.grid) == 13
         assert obs.rays[0] == pytest.approx(90 / 200)
+
+
+class TestPacePhase:
+    def test_phase_does_not_depend_on_max_steps(self):
+        short = make_sim(max_steps=100)
+        unlimited = make_sim(max_steps=None)
+        for sim in (short, unlimited):
+            for _ in range(50):
+                sim.step(IDLE)
+
+        assert build_observation(short).scalars == build_observation(unlimited).scalars
+
+    def test_phase_wraps_at_the_pace_interval(self):
+        sim = make_sim(max_steps=None)
+        for _ in range(game_config.PACE_UPDATE_TICKS // 2):
+            sim.step(IDLE)
+
+        assert build_observation(sim).scalars[3] == pytest.approx(0.5)
+
+
+class TestFlatten:
+    def test_layout_is_grid_then_rays_then_scalars(self):
+        obs = build_observation(make_sim([vertical(215, 190, 230)]))
+
+        flat = flatten_observation(obs)
+
+        assert len(flat) == observation_size()
+        assert flat[: SIZE * SIZE] == [float(c) for row in obs.grid for c in row]
+        assert flat[SIZE * SIZE : SIZE * SIZE + 4] == list(obs.rays)
+        assert flat[-4:] == list(obs.scalars)
+
+    def test_values_are_floats_in_unit_range(self):
+        flat = flatten_observation(build_observation(make_sim()))
+
+        assert all(isinstance(v, float) and 0.0 <= v <= 1.0 for v in flat)

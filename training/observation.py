@@ -14,6 +14,8 @@ from infinite_maze.utils.config import config as game_config
 from . import config
 
 Rays = Tuple[float, float, float, float]  # right, left, up, down
+RAY_NAMES = ("right", "left", "up", "down")
+SCALAR_NAMES = ("x", "y", "pace", "pace_phase")
 
 
 @dataclass
@@ -22,7 +24,7 @@ class Observation:
 
     grid: List[List[int]]  # grid[row][col]; 1 = a wall crosses that raster cell
     rays: Rays  # distance to the nearest wall, as a fraction of the ray cap
-    scalars: Tuple[float, ...]  # x, y, pace, ticks fraction (all in [0, 1])
+    scalars: Tuple[float, ...]  # x, y, pace, pace phase (all in [0, 1])
 
 
 def window_origin(
@@ -127,15 +129,32 @@ def _scalars(sim: Simulation) -> Tuple[float, ...]:
     xFraction = (px - game.X_MIN) / (game.X_MAX - game.X_MIN)
     yFraction = (py - game.Y_MIN) / (game.Y_MAX - game.Y_MIN)
     paceFraction = min(game.getPace() / config.OBS_PACE_CAP, 1.0)
-    if sim.maxSteps:
-        ticksFraction = min(sim.getSteps() / sim.maxSteps, 1.0)
-    else:
-        ticksFraction = (sim.getTicks() % game_config.PACE_UPDATE_TICKS) / (
-            game_config.PACE_UPDATE_TICKS
-        )
+    # Phase within the pace interval: independent of max_steps, so training and
+    # evaluation episodes of different lengths see the same signal.
+    paceInterval = game_config.PACE_UPDATE_TICKS
+    pacePhase = (sim.getTicks() % paceInterval) / paceInterval
     return (
         min(max(xFraction, 0.0), 1.0),
         min(max(yFraction, 0.0), 1.0),
         paceFraction,
-        ticksFraction,
+        pacePhase,
     )
+
+
+def observation_size(
+    grid_size: int = config.OBS_GRID_SIZE,
+) -> int:
+    """Length of ``flatten_observation`` output for a raster of ``grid_size``."""
+    return grid_size * grid_size + len(RAY_NAMES) + len(SCALAR_NAMES)
+
+
+def flatten_observation(obs: Observation) -> List[float]:
+    """Flatten to ``[grid row-major..., rays..., scalars...]`` (all in [0, 1]).
+
+    The single flattening shared by the environment, ``ModelPolicy`` and any
+    demonstration export.
+    """
+    flat: List[float] = [float(cell) for row in obs.grid for cell in row]
+    flat.extend(obs.rays)
+    flat.extend(obs.scalars)
+    return flat

@@ -8,8 +8,10 @@ from infinite_maze.core.replay import compareExpected, runReplay
 from training import config
 from training.evaluate import evaluate, record_replay
 from training.policies import (
+    RIGHT,
     AlwaysRightPolicy,
     HeuristicPolicy,
+    PrivilegedPolicy,
     RandomPolicy,
     make_policy,
 )
@@ -58,6 +60,39 @@ class TestEvaluateHarness:
         episode = next(e for e in report.episodes if e.seed == worst)
         assert result["score"] == episode.score
         assert result["ticks"] == episode.steps
+
+    def test_frame_skip_repeats_each_action_and_replays_tick_exactly(self):
+        report = evaluate(AlwaysRightPolicy(), [3], max_steps=150, frame_skip=4)
+        replay = record_replay(AlwaysRightPolicy(), 3, max_steps=150, frame_skip=4)
+
+        result = runReplay(replay)
+
+        assert report.frame_skip == 4
+        assert report.episodes[0].steps == 150
+        assert compareExpected(replay, result) == []
+        assert result["score"] == report.episodes[0].score
+
+    def test_frame_skip_stops_mid_repeat_at_max_steps(self):
+        report = evaluate(AlwaysRightPolicy(), [3], max_steps=10, frame_skip=7)
+
+        assert report.episodes[0].steps == 10
+
+    def test_privileged_policies_receive_the_simulation(self):
+        class Peek(PrivilegedPolicy):
+            name = "peek"
+
+            def __init__(self):
+                self.seen = []
+
+            def act_privileged(self, sim):
+                self.seen.append(sim.getTicks())
+                return RIGHT
+
+        policy = Peek()
+
+        evaluate(policy, [3], max_steps=5)
+
+        assert policy.seen == [0, 1, 2, 3, 4]
 
 
 @pytest.mark.slow

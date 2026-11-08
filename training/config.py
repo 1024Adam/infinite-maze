@@ -29,7 +29,32 @@ SEED_SETS = {
 }
 EVAL_MAX_STEPS: int = 2000
 EVAL_START_PACE: int = 0
+DEFAULT_FRAME_SKIP: int = 4
+
+# Oracle
+ORACLE_LOOKAHEAD_COLS: int = 12  # BFS target: this many columns ahead of the player
+ORACLE_ALIGN_TOL_PX: int = 2  # lane-keeping tolerance when centring in a corridor
+ORACLE_CACHE_FIELDS: int = 64  # BFS distance fields kept per episode
+ORACLE_STATS_MAX_PACE: int = 6  # oracle_stats sweeps start_pace 0..this
+TORCH_THREADS: int = 1  # keeps CPU PPO reproducible and leaves cores to the envs
+
+# Expert ladder thresholds (rungs 2-4). Provisional until the oracle ceilings
+# (python -m training.oracle_stats) say what is achievable.
+EXPERT_LADDER = {
+    "r2": 0.5,  # rung 2: mean score >= r2 * oracle mean score
+    "r3": 0.9,  # rung 3: mean score >= r3 * oracle mean score
+    "pace": 3,  # rung 4: mean final pace >= pace ...
+    "max_death_rate": 0.1,  # ... with death rate <= this
+}
 RUNS_DIR = Path(__file__).parent / "runs"
+
+# Benchmark
+BENCH_SEEDS: int = 10
+BENCH_STEPS: int = 10_000
+BENCH_START_PACE: int = 0
+BENCH_PROFILE_ROWS: int = 15
+# Mostly right so the world scrolls like real play; the rest wanders vertically.
+BENCH_ACTION_POOL = (1, 1, 1, 1, 1, 1, 3, 4, 0)
 
 # Heuristic baseline
 HEURISTIC_OPEN_PX: int = 2  # a ray longer than this counts as open

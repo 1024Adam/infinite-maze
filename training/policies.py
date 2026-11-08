@@ -4,6 +4,7 @@ import random
 from abc import ABC, abstractmethod
 from typing import Callable, Dict, NamedTuple, Optional
 
+from infinite_maze.core.simulation import Simulation
 from infinite_maze.utils.config import config as game_config
 
 from . import config
@@ -28,6 +29,19 @@ class Policy(ABC):
     @abstractmethod
     def act(self, obs: Observation) -> int:
         """Choose an action for ``obs``."""
+
+
+class PrivilegedPolicy(Policy):
+    """A policy that reads the simulation itself (walls included), not an
+    observation. Used for the oracle ceiling; ``evaluate()`` calls
+    ``act_privileged`` instead of ``act`` for these."""
+
+    def act(self, obs: Observation) -> int:
+        raise TypeError(f"{self.name} is privileged: use act_privileged(sim)")
+
+    @abstractmethod
+    def act_privileged(self, sim: Simulation) -> int:
+        """Choose an action from the full simulation state."""
 
 
 class RandomPolicy(Policy):

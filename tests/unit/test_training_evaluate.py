@@ -97,7 +97,7 @@ class TestCli:
         out = tmp_path / "runs" / "baselines.json"
         calls = []
 
-        def fake_evaluate(policy, seeds, max_steps, start_pace, reward):
+        def fake_evaluate(policy, seeds, max_steps, start_pace, reward, frame_skip):
             calls.append((policy.name, list(seeds), max_steps, start_pace))
             return report(policy.name)
 

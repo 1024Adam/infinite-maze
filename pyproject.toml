@@ -34,6 +34,20 @@ black = {version = "^26.3.1", python = ">=3.10"}
 flake8 = "^7.1.2"
 mypy = "^1.0.0"
 
+[tool.poetry.group.ml-env]
+optional = true
+
+[tool.poetry.group.ml-env.dependencies]
+gymnasium = {version = ">=1.0,<2.0", python = ">=3.10"}
+numpy = {version = ">=2.0", python = ">=3.10"}
+
+[tool.poetry.group.ml-train]
+optional = true
+
+[tool.poetry.group.ml-train.dependencies]
+stable-baselines3 = {version = ">=2.4,<3.0", python = ">=3.10"}
+torch = {version = ">=2.4", python = ">=3.10"}
+
 [tool.poetry.scripts]
 infinite-maze = "infinite_maze.__main__:main"
 
@@ -84,3 +98,9 @@ strict_equality = true
 [[tool.mypy.overrides]]
 module = "pygame.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["gymnasium.*", "numpy.*", "stable_baselines3.*", "torch.*"]
+ignore_missing_imports = true
+# Installed ML libraries use syntax newer than python_version = "3.8".
+follow_imports = "skip"

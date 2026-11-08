@@ -215,6 +215,14 @@ The rules are tick based and the maze is seeded, so tests need no clock mocks:
 - **Replay fixtures** in `tests/fixtures/replays/` (recipes in `tests/fixtures/replay_recipes.py`) are replayed headless and must match their `expected` state. The same environment variable regenerates them.
 - Reproduce a bug from a recording: `poetry run python -m infinite_maze --replay bug.json --headless` (exit code 1 on mismatch).
 
+### Optional ML dependencies
+
+The `training/` package has tests (`tests/**/test_training_*.py`). Tests that need the optional Poetry groups call `pytest.importorskip`, so they are skipped when the libraries are missing and the core suite never needs them:
+
+- `ml-env` (Gymnasium, numpy): `tests/unit/test_training_env.py`. CI runs it in its own job.
+- `ml-train` (Stable-Baselines3, PyTorch): `tests/unit/test_training_train.py`. The end-to-end smoke run is marked `slow`: `poetry run pytest -m slow tests/ -k training`.
+- Everything else under `training/` (observation, reward, evaluation, experiment configs, expert ladder, oracle) is stdlib-only and always runs.
+
 ### CI/CD Testing
 ```bash
 # Fast feedback loop for pull requests

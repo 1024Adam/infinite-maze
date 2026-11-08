@@ -42,3 +42,28 @@ jobs:
         with:
           name: coverage-report
           path: coverage.xml
+
+  ml-env:
+    name: pytest (ml-env group)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      # ml-train (PyTorch) is deliberately not installed in CI.
+      - name: Install dependencies
+        run: |
+          poetry install --with ml-env
+          poetry run pip install -r requirements-test.txt
+
+      - name: Run environment tests
+        run: |
+          poetry run pytest -m "not slow and not performance" \
+            tests/unit/test_training_env.py
