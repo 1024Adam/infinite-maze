@@ -566,3 +566,47 @@ class TestLinePerformance:
         duration = end_time - start_time
         
         assert duration < 5.0, f"Maze generation took too long: {duration}s"
+
+
+def _lineKeys(lines):
+    return [(line.getStart(), line.getEnd()) for line in lines]
+
+
+class TestSeededMazeGeneration:
+    """Maze generation is reproducible from an injected RNG."""
+
+    def _game(self):
+        game = Mock()
+        game.Y_MIN = config.MAZE_TOP_Y
+        return game
+
+    def test_same_seed_gives_identical_lines(self):
+        import random
+
+        first = Line.generateMaze(self._game(), 6, 8, random.Random(42))
+        second = Line.generateMaze(self._game(), 6, 8, random.Random(42))
+
+        assert _lineKeys(first) == _lineKeys(second)
+
+    def test_different_seeds_give_different_lines(self):
+        import random
+
+        first = Line.generateMaze(self._game(), 6, 8, random.Random(1))
+        second = Line.generateMaze(self._game(), 6, 8, random.Random(2))
+
+        assert _lineKeys(first) != _lineKeys(second)
+
+    def test_rng_none_still_generates(self):
+        lines = Line.generateMaze(self._game(), 4, 5, None)
+
+        assert len(lines) > 0
+
+    def test_global_random_state_is_not_consulted(self):
+        import random
+
+        random.seed(1)
+        first = Line.generateMaze(self._game(), 4, 5)
+        random.seed(1)
+        second = Line.generateMaze(self._game(), 4, 5)
+
+        assert _lineKeys(first) != _lineKeys(second)

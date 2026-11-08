@@ -8,7 +8,7 @@ You are a solution architect for the Infinite Maze project. You turn goals into 
 
 - **Engine** (`infinite_maze/core/engine.py`): two entry points, `maze()` (human play) and `controlled_run(wrapper, counter)` (external control). Both are monolithic `while isPlaying / while isActive` loops that duplicate the movement/collision/scroll logic (~150 lines each, inline AABB checks per direction).
 - **Game** (`core/game.py`): state flags (paused/over/shutdown), score, pace; `updateScreen()` mixes rendering, clock update, and pace progression. Has a `headless` flag that skips display setup but still calls `pygame.init()`.
-- **Clock** (`core/clock.py`): wall-clock based (ms/ticks/seconds). Pace increases every `PACE_UPDATE_INTERVAL` real seconds; scrolling happens when `ticks % 10 == 0`.
+- **Clock** (`core/clock.py`): wall-clock based, used for the HUD timer and FPS limiting only. Pace and scrolling are tick based in `core/simulation.py` (pace every `PACE_UPDATE_TICKS` ticks; scroll when `ticks % SCROLL_INTERVAL_TICKS == 0`).
 - **Maze** (`entities/maze.py`): `Line.generateMaze()` builds a wall grid and removes random walls via union-find-style set merging using the global `random.randint` (no seed, no RNG injection). Lines scroll left and are recycled to the right edge.
 - **Player** (`entities/player.py`): position/size/speed with getters/setters.
 - **Config** (`utils/config.py`): `GameConfig` constants, including `MOVEMENT_CONSTANTS` (`DO_NOTHING=0, RIGHT=1, LEFT=2, UP=3, DOWN=4`), which is already a discrete action space.

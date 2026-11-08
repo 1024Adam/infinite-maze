@@ -1,0 +1,10 @@
+{"description":"Move right then left past the start: score floors at 0, then death.","trace":[
+{"label":"frame","x":80,"y":223,"score":0,"pace":0,"lines":"625bd3b009","frame":0},
+{"label":"frame","x":81,"y":223,"score":1,"pace":0,"lines":"625bd3b009","frame":1},
+{"label":"frame","x":82,"y":223,"score":2,"pace":0,"lines":"625bd3b009","frame":2},
+{"label":"frame","x":83,"y":223,"score":3,"pace":0,"lines":"625bd3b009","frame":3},
+{"label":"frame","x":82,"y":223,"score":2,"pace":0,"lines":"625bd3b009","frame":4},
+{"label":"frame","x":81,"y":223,"score":1,"pace":0,"lines":"625bd3b009","frame":5},
+{"label":"frame","x":80,"y":223,"score":0,"pace":0,"lines":"625bd3b009","frame":6},
+{"label":"end","x":79,"y":223,"score":0,"pace":0,"lines":"625bd3b009"}
+]}

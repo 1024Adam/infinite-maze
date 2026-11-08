@@ -70,7 +70,7 @@ Every test must run without a display. Never call `pygame.display.set_mode()`, `
 
 - Use `MockPygameClock` to control elapsed time — never use `time.sleep()` or `datetime.now()`.
 - `MockPygameClock.tick()` advances `time_value` by `frame_time` ms (default 16 ms / 60 fps). Override `frame_time` on the instance to simulate slower frames.
-- For pace-system tests, calculate the number of `tick()` calls needed from `config.PACE_UPDATE_INTERVAL` rather than hardcoding frame counts.
+- For pace-system tests, calculate the number of `Simulation.step()` calls needed from `config.PACE_UPDATE_TICKS` rather than hardcoding frame counts.
 
 ## Common Patterns
 

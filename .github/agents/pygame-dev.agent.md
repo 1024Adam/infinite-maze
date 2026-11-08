@@ -8,7 +8,7 @@ You are an expert Python game developer specializing in pygame. You have deep kn
 
 - **Engine** (`core/engine.py`): Double-nested while loop (`isPlaying` / `isActive`). Per-frame: input polling → collision → movement → pace update → render.
 - **Clock** (`core/clock.py`): Wraps `pygame.time.Clock`, tracks ms/ticks/FPS, supports pause rollback via `rollbackMillis()`.
-- **Game** (`core/game.py`): Holds state flags (paused, over, shutdown); drives pace (global speed multiplier incremented every `PACE_UPDATE_INTERVAL` seconds).
+- **Game** (`core/game.py`): Holds state flags (paused, over, shutdown); holds pace (global speed multiplier, incremented by `Simulation.step()` every `PACE_UPDATE_TICKS` ticks).
 - **Player** (`entities/player.py`): Position tuple, sprite surface, `moveX()`/`moveY()` methods; dimensions and speed from config.
 - **Maze** (`entities/maze.py`): `Line` (wall segment with start/end tuples, horizontal flag, side relationships). Maze generated via **union-find** algorithm; lines scroll right and are recycled as pace increases.
 - **Config** (`utils/config.py`): Central constants for screen size, player speed, pace update interval, asset paths.

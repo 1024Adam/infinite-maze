@@ -13,6 +13,7 @@ from infinite_maze.core.engine import maze, controlled_run
 from infinite_maze.core.game import Game
 from infinite_maze.entities.player import Player
 from infinite_maze.entities.maze import Line
+from infinite_maze.utils.config import config
 from tests.fixtures.pygame_mocks import full_pygame_mocks, InputSimulator
 from tests.fixtures.test_helpers import PerformanceMonitor, GameStateCapture
 
@@ -25,7 +26,7 @@ class TestGameEngineInitialization:
         with patch('infinite_maze.core.engine.pygame.init'), \
              patch('infinite_maze.core.engine.pygame.key.get_pressed', return_value={}), \
              patch('infinite_maze.core.engine.pygame.event.get', return_value=[]), \
-             patch('infinite_maze.core.engine.time.delay'):
+             patch('pygame.time.delay'):
             
             # Mock the game loop to exit immediately
             with patch.object(Game, 'isPlaying', return_value=False):
@@ -279,29 +280,18 @@ class TestGameEnginePaceSystem:
     """Test game engine pace/timing system."""
     
     def test_pace_progression(self):
-        """Test pace progression over time."""
-        game = Game(headless=True)
-        clock = game.getClock()
-        
-        # Simulate time progression
-        time_tests = [
-            (5000, 0),    # 5 seconds: no pace
-            (15000, 0),   # 15 seconds: no pace
-            (35000, 1),   # 35 seconds: pace starts
-            (65000, 2),   # 65 seconds: pace increases
-        ]
-        
-        for millis, expected_pace in time_tests:
-            clock.millis = millis
-            
-            # Simulate pace calculation
-            if millis > 10000 and clock.getSeconds() % 30 == 0:
-                current_pace = game.getPace()
-                game.setPace(current_pace + 1)
-            
-            # Note: Exact pace calculation depends on implementation details
-            # This test verifies the general progression concept
-    
+        """Pace advances once per PACE_UPDATE_TICKS simulation ticks."""
+        from infinite_maze.core.simulation import Simulation
+
+        sim = Simulation(seed=1, max_steps=None)
+        sim.lines = []
+
+        for expected_pace in (1, 2):
+            for _ in range(config.PACE_UPDATE_TICKS):
+                sim.player.setX(200)  # keep scrolling from ending the episode
+                sim.step((0, 0))
+            assert sim.game.getPace() == expected_pace
+
     def test_pace_affects_movement(self):
         """Test that pace affects game movement."""
         game = Game(headless=True)

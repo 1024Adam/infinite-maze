@@ -1,10 +1,14 @@
-from random import randint
-from typing import Any, List, Tuple
+"""Maze entities: wall segments (``Line``) and seedable maze generation."""
+
+import random
+from typing import Any, List, Optional, Tuple
 
 from ..utils.config import config
 
 
 class Line:
+    """A wall segment, with the two cell sets it separates during generation."""
+
     def __init__(
         self,
         startPos: Tuple[int, int] = (0, 0),
@@ -70,10 +74,12 @@ class Line:
         return self.isHorizontal
 
     def resetIsHorizontal(self) -> None:
+        """Recompute the horizontal flag after the endpoints were changed."""
         self.isHorizontal = self.start[1] == self.end[1]
 
     @staticmethod
     def getXMax(lines: List["Line"]) -> int:
+        """Return the largest end x among ``lines`` (0 for an empty list)."""
         if not lines:
             return 0
         xMax = lines[0].getXEnd()  # Initialize with first line's end
@@ -84,15 +90,29 @@ class Line:
         return xMax
 
     @staticmethod
-    def generateMaze(game: Any, width: int, height: int) -> List["Line"]:
+    def generateMaze(
+        game: Any,
+        width: int,
+        height: int,
+        rng: Optional[random.Random] = None,
+    ) -> List["Line"]:
+        """Generate maze walls by removing random walls between separate cell sets.
+
+        The result is a spanning tree of cells. The same seeded ``rng`` always
+        gives the same maze; ``rng=None`` uses a fresh unseeded generator.
+        """
+        if rng is None:
+            rng = random.Random()
         lines: List[Line] = []
         # Keep generation stable for tiny test dimensions.
         width = max(width, 3)
         height = max(height, 3)
+        # Cells per column; also the cell-id stride between columns.
+        stride = height - 1
 
         # Horizontal Line Gen
         for x in range(width * 2):
-            sideA = (19 * x) + 1
+            sideA = (stride * x) + 1
             sideB = sideA + 1
 
             xPos = (
@@ -112,7 +132,7 @@ class Line:
         # Vertical Line Gen
         for y in range(height - 1):
             sideA = y + 1
-            sideB = sideA + 19
+            sideB = sideA + stride
 
             yPos = (config.MAZE_CELL_SIZE * y) + game.Y_MIN
             for x in range(1, width * 2):
@@ -127,7 +147,7 @@ class Line:
                     )
                 )
                 sideA = sideB
-                sideB += 19
+                sideB += stride
 
         # Create 'maze' structure
         # (will be complete when all 'cells' are connected to each other)
@@ -137,7 +157,7 @@ class Line:
 
         while len(sets) != 1:
             length = len(lines)
-            lineNum = randint(0, length - 1)
+            lineNum = rng.randint(0, length - 1)
             tempSideA = lines[lineNum].getSideA()
             tempSideB = lines[lineNum].getSideB()
             if tempSideA != tempSideB:

@@ -66,3 +66,6 @@ migration_backup/
 
 # Development plans
 plans/
+
+# Local game recordings (committed regression replays live in tests/fixtures/replays/)
+replays/

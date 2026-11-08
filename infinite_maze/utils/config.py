@@ -5,7 +5,7 @@ This module contains all game configuration settings, extracted from hardcoded
 values to improve maintainability and allow for easy customization.
 """
 
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, Optional
 
 
 class GameConfig:
@@ -33,7 +33,17 @@ class GameConfig:
     TEXT_MARGIN: int = 10
     BORDER_OFFSET: int = 10
     FPS_DELAY_MS: int = 16
-    PACE_UPDATE_INTERVAL: int = 30  # seconds
+    PACE_UPDATE_INTERVAL: int = 30  # nominal seconds at FPS; pace is tick based
+    MAZE_TOP_Y: int = 40  # y coordinate of the top maze border
+    SEED_TEXT_GAP: int = 2  # gap between the bottom border and the seed text
+    SEED_RANGE: int = 2**32  # exclusive upper bound for generated seeds
+
+    # Simulation settings (time is measured in simulation ticks, not seconds)
+    START_PACE: int = 0
+    SCROLL_INTERVAL_TICKS: int = 10
+    PACE_UPDATE_TICKS: int = PACE_UPDATE_INTERVAL * FPS
+    MAX_EPISODE_STEPS: Optional[int] = None  # None = unlimited (human play)
+    NO_LINE_SENTINEL_X: int = 1000  # closest-line value when nothing is ahead
 
     # Colors (RGB tuples)
     COLORS: Dict[str, Tuple[int, int, int]] = {
@@ -78,6 +88,15 @@ class GameConfig:
         "LEFT": 2,
         "UP": 3,
         "DOWN": 4,
+    }
+
+    # Discrete action -> (dx, dy) intent
+    ACTION_TO_INTENT: Dict[int, Tuple[int, int]] = {
+        0: (0, 0),  # DO_NOTHING
+        1: (1, 0),  # RIGHT
+        2: (-1, 0),  # LEFT
+        3: (0, -1),  # UP
+        4: (0, 1),  # DOWN
     }
 
     @classmethod

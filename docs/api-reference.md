@@ -6,6 +6,8 @@ This document provides comprehensive technical documentation for all classes, me
 
 - [Core Module (`infinite_maze.core`)](#core-module-infinite_mazecore)
   - [Engine (`engine.py`)](#engine-enginepy)
+  - [Simulation (`simulation.py`)](#simulation-simulationpy)
+  - [Replay (`replay.py`)](#replay-replaypy)
   - [Game (`game.py`)](#game-gamepy)
   - [Clock (`clock.py`)](#clock-clockpy)
 - [Entities Module (`infinite_maze.entities`)](#entities-module-infinite_mazeentities)
@@ -38,25 +40,30 @@ Movement direction constants used throughout the engine.
 
 #### Functions
 
-##### `maze() -> None`
+##### `maze(seed: Optional[int] = None, start_pace: int = 0, record_path: Optional[str] = None) -> None`
 
 **Primary game entry point and main game loop.**
 
 **Description:**
 Initializes the game components and runs the main gameplay loop. Handles all user input, game state management, collision detection, and rendering.
 
+**Parameters:**
+- `seed` (int, optional): Seed for maze generation. An explicit seed regenerates the same maze on every restart; `None` draws a new random seed per episode. The seed is always logged, but only shown in the HUD when passed explicitly.
+- `start_pace` (int): Initial pace.
+- `record_path` (str, optional): Write a replay per episode (`path`, `path-2`, ...).
+
 **Usage:**
 ```python
 from infinite_maze.core.engine import maze
 maze()  # Starts the game
+maze(seed=1234)  # Same maze every time
 ```
 
 **Game Loop Flow:**
 1. Initialize game, player, and maze components
 2. Process keyboard input (WASD/Arrow keys)
-3. Handle collision detection with maze walls
-4. Update game pace and position adjustments
-5. Render the game screen
+3. Convert keys to an `Intent` and call `Simulation.step()` (collision, scrolling, pace, bounds)
+4. Render the game screen
 6. Control frame rate
 7. Handle game over and restart logic
 
@@ -66,13 +73,14 @@ maze()  # Starts the game
 - Pause/resume functionality
 - Clean game state transitions
 
-##### `controlled_run(wrapper, counter) -> None`
+##### `controlled_run(wrapper, counter, seed: Optional[int] = None) -> None`
 
 **Alternative game loop for external control (AI/testing).**
 
 **Parameters:**
 - `wrapper`: External controller object with `control()` and `gameover()` methods
 - `counter`: Iteration counter for external tracking
+- `seed`: Optional maze seed (same semantics as `maze(seed=...)`)
 
 **Description:**
 Provides a controlled version of the main game loop where movement decisions can be made by external systems (AI agents, automated testing, etc.). Returns game state information to the controller and processes the controller's movement decisions.
@@ -98,6 +106,54 @@ controlled_run(ai, 0)
 - Distance to closest wall/obstacle
 
 ---
+
+### Simulation (`simulation.py`)
+
+The single implementation of the game rules; see [architecture](architecture.md). No rendering, sleeping or wall-clock access.
+
+```python
+from infinite_maze.core.simulation import Simulation
+
+sim = Simulation(seed=1234, start_pace=0, max_steps=None)
+result = sim.step((1, 0))  # (dx, dy), each in {-1, 0, 1}
+```
+
+#### `StepResult`
+| Field | Meaning |
+|---|---|
+| `score_delta` | Actual change of the score (the floor at 0 is honoured) |
+| `moved` | Actual player displacement from input, before scrolling |
+| `terminated` | The player was pushed past `X_MIN` |
+| `truncated` | `max_steps` was reached |
+
+#### `Simulation`
+- `__init__(seed=None, start_pace=config.START_PACE, max_steps=config.MAX_EPISODE_STEPS, game=None, player=None)`
+- `reset(seed=None)`: new episode. An explicit seed (here or in the constructor) is reused by later resets.
+- `step(intent) -> StepResult`
+- `getSeed()`, `getTicks()`, `getSteps()`, `getLines()`, `getClosestLineX()`, `isTerminated()`, `getState()`
+
+Discrete actions map to intents through `config.ACTION_TO_INTENT`.
+
+### Replay (`replay.py`)
+
+```json
+{
+  "version": 1,
+  "seed": 1234,
+  "start_pace": 0,
+  "maze": {"rows": 15, "cols": 20, "cell": 22},
+  "intents": [[1, 0, 120], [0, 1, 7]],
+  "expected": {"score": 85, "ticks": 127, "pace": 0, "player": [101, 223], "terminated": false}
+}
+```
+
+`intents` are run-length encoded `[dx, dy, count]`; only steps that reach `Simulation.step()` are recorded (paused frames are not). `expected` is optional and makes the replay a regression test.
+
+- `ReplayRecorder(seed, startPace)`: `record(intent)`, `toReplay(finalState=None)`
+- `saveReplay(replay, path)`, `loadReplay(path)`: raises `ReplayError` on a bad file, unsupported version or maze-config mismatch
+- `runReplay(replay, render=False) -> dict`: final state
+- `compareExpected(replay, result) -> list[str]`: mismatches against `expected`
+- `episodePath(basePath, episode)`
 
 ### Game (`game.py`)
 
@@ -159,7 +215,7 @@ test_game = Game(headless=True)
 Handles all screen rendering including player sprite, maze walls, UI text, borders, and timing updates. Also manages pace acceleration triggers.
 
 **Features:**
-- Automatic pace acceleration every 30 seconds
+- Automatic pace acceleration every `config.PACE_UPDATE_TICKS` game ticks
 - Pause state visual feedback
 - Score and time display
 - Border and boundary rendering
@@ -212,6 +268,10 @@ Toggles pause state and updates visual elements (colors, player sprite) to refle
 
 **Parameters:**
 - `player` (Player): Player object to update sprite for
+
+###### Seed Management
+
+`getSeed()` / `setSeed(newSeed)` store the seed of the current episode. `setSeedVisible(bool)` / `isSeedVisible()` control whether the HUD shows it (`Simulation` enables it only for explicit seeds).
 
 ###### Pace Management
 
@@ -425,7 +485,7 @@ def getIsHorizontal() -> bool           # Check if line is horizontal
 
 ##### Static Methods
 
-###### `generateMaze(game: Game, rows: int, cols: int) -> List[Line]`
+###### `generateMaze(game: Game, rows: int, cols: int, rng: Optional[random.Random] = None) -> List[Line]`
 
 **Generates a random maze layout.**
 
@@ -433,6 +493,7 @@ def getIsHorizontal() -> bool           # Check if line is horizontal
 - `game` (Game): Game object for configuration
 - `rows` (int): Number of maze rows
 - `cols` (int): Number of maze columns
+- `rng` (random.Random, optional): Source of randomness. The same seeded `rng` always yields the same maze; `None` uses a fresh unseeded generator (the global `random` module is never used).
 
 **Returns:**
 - `List[Line]`: List of line objects representing maze walls

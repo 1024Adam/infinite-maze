@@ -742,3 +742,24 @@ class TestBenchmarkSuite:
             print(f"Collision-Heavy: {benchmark_results['collision_heavy']:.1f} FPS")
             print(f"Peak Memory: {memory_stats['peak']:.1f}MB")
             print(f"Total Duration: {monitor.get_duration():.2f}s")
+
+
+class TestSimulationThroughput:
+    """The rules run without sleeping or wall-clock dependence."""
+
+    @pytest.mark.performance
+    def test_ten_thousand_steps_run_without_delay(self):
+        from infinite_maze.core.simulation import Simulation
+
+        sim = Simulation(seed=1, max_steps=None)
+        intents = [(1, 0), (0, 1), (1, 0), (0, -1), (0, 0)]
+
+        with patch("pygame.time.delay") as delay:
+            start = time.perf_counter()
+            for step in range(10000):
+                sim.step(intents[step % len(intents)])
+            duration = time.perf_counter() - start
+
+        delay.assert_not_called()
+        # Real play paces frames at ~16ms, so 10k frames would take ~160s.
+        assert duration < 60.0

@@ -33,7 +33,7 @@ applyTo: "infinite_maze/**/*.py"
 
 ## Pace System
 
-- The global speed multiplier lives in `Game` and increments every `config.PACE_UPDATE_INTERVAL` seconds.
+- The global speed multiplier lives in `Game` and increments every `config.PACE_UPDATE_TICKS` simulation ticks (a frame count, not wall-clock time); the logic lives in `Simulation.step()`.
 - Maze lines reposition off-screen to the right as pace increases — do not reset their absolute coordinates to zero.
 - If adding a new speed-dependent value, multiply by the current pace factor and source the base value from `config`.
 

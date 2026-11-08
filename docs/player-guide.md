@@ -8,7 +8,7 @@ Infinite Maze is a unique twist on classic maze games. Instead of finding an exi
 
 ### What Makes It Special?
 - **Truly Infinite**: The maze never ends - it generates new sections as you progress
-- **Progressive Challenge**: Every 30 seconds, the pace increases, making survival harder
+- **Progressive Challenge**: The pace increases periodically, making survival harder
 - **Strategic Scoring**: Smart movement decisions affect your final score
 - **Smooth Controls**: Responsive movement that feels natural and precise
 
@@ -42,7 +42,7 @@ This design allows new players to practice movement and understand the controls 
 The game's signature feature is the advancing "pace line":
 
 1. **Pace Activation**: From the start, a boundary begins advancing from the left
-2. **Acceleration**: Every 30 seconds, the pace increases speed
+2. **Acceleration**: Periodically (every 1800 game ticks; paused time does not count), the pace increases speed
 4. **Game Over**: When the pace line catches up to your position
 
 ### Victory Conditions
@@ -130,21 +130,21 @@ There is no traditional "win" condition - the game is about achieving your perso
 
 ## 🎪 Game Phases & Progression
 
-### Phase 1: Early Pace (0-30 seconds)
+### Phase 1: Early Pace (before the first increase)
 **Focus**: Establishing rhythm
 - Maintain steady rightward progress
 - Avoid panic as the pace begins
 - Develop your navigation rhythm
 - Build score while staying safe
 
-### Phase 2: Moderate Challenge (30-90 seconds)
+### Phase 2: Moderate Challenge (first few increases)
 **Focus**: Efficiency and adaptation
 - Navigate more quickly as pace increases
 - Make smarter movement decisions
 - Adapt to increasing pressure
 - Maintain high score growth
 
-### Phase 3: High Intensity (90+ seconds)
+### Phase 3: High Intensity (many increases in)
 **Focus**: Survival and optimization
 - Quick decision-making under extreme pressure
 - Minimal mistakes tolerance

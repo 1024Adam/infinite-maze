@@ -202,6 +202,19 @@ pytest -m performance --run-performance -v
 python run_tests.py performance
 ```
 
+### Determinism, Golden Traces and Replays
+
+The rules are tick based and the maze is seeded, so tests need no clock mocks:
+
+- `tests/unit/test_simulation.py` drives `Simulation` directly (blocking, scoring, scrolling, pace at exactly `config.PACE_UPDATE_TICKS`, truncation, determinism over thousands of steps).
+- `tests/unit/test_maze_analysis.py` verifies generated mazes are connected spanning trees and solvable.
+- **Golden traces** (`tests/integration/test_golden_traces.py`) drive the real `maze()` / `controlled_run()` loops with scripted input (scenarios in `tests/fixtures/golden_scenarios.py`) and compare per-frame state with `tests/fixtures/golden/*.json`. A golden diff means gameplay changed. Regenerate **only** after an intentional change, and explain every diff in the PR:
+  ```bash
+  REGENERATE_GOLDENS=1 poetry run pytest tests/integration/test_golden_traces.py tests/unit/test_replay.py
+  ```
+- **Replay fixtures** in `tests/fixtures/replays/` (recipes in `tests/fixtures/replay_recipes.py`) are replayed headless and must match their `expected` state. The same environment variable regenerates them.
+- Reproduce a bug from a recording: `poetry run python -m infinite_maze --replay bug.json --headless` (exit code 1 on mismatch).
+
 ### CI/CD Testing
 ```bash
 # Fast feedback loop for pull requests

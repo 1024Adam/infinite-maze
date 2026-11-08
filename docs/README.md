@@ -67,7 +67,7 @@ Infinite Maze is a fast-paced, procedurally generated maze navigation game where
 
 ### Key Features
 - **Infinite Procedural Mazes**: Never-ending, randomly generated challenges
-- **Progressive Difficulty**: Pace increases every 30 seconds
+- **Progressive Difficulty**: Pace increases periodically (every 1800 game ticks)
 - **Strategic Scoring**: Reward forward progress, penalize backtracking
 - **Modern Architecture**: Clean Python codebase with Poetry dependency management
 - **Extensible Design**: Easy to modify and extend for custom gameplay
