@@ -1,0 +1,23 @@
+{"description":"controlled_run ends and reports gameover when scrolled past X_MIN.","trace":[
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":0},
+{"label":"control","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","action":0,"score_increased":false,"closest_line":102},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":1},
+{"label":"control","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","action":0,"score_increased":false,"closest_line":102},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":2},
+{"label":"control","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","action":0,"score_increased":false,"closest_line":102},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":3},
+{"label":"control","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","action":0,"score_increased":false,"closest_line":102},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":4},
+{"label":"control","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","action":0,"score_increased":false,"closest_line":102},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":5},
+{"label":"control","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","action":0,"score_increased":false,"closest_line":102},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":6},
+{"label":"control","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","action":0,"score_increased":false,"closest_line":102},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":7},
+{"label":"control","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","action":0,"score_increased":false,"closest_line":102},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":8},
+{"label":"control","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","action":0,"score_increased":false,"closest_line":102},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":9},
+{"label":"control","x":79,"y":223,"score":0,"pace":1,"lines":"2623023969","action":0,"score_increased":false,"closest_line":101},
+{"label":"gameover","x":79,"y":223,"score":0,"pace":1,"lines":"2623023969","gameover_score":0}
+]}

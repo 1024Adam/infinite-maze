@@ -340,6 +340,23 @@ class TestGameDisplay:
             assert len(mocks['display']['surface'].fills) > 0
             assert len(mocks['display']['surface'].blits) > 0
     
+    @pytest.mark.parametrize("visible", [True, False])
+    def test_seed_is_only_rendered_when_visible(self, visible):
+        """The HUD shows the seed only when it was passed explicitly."""
+        with full_pygame_mocks() as mocks:
+            game = Game(headless=False)
+            game.setSeed(4321)
+            game.setSeedVisible(visible)
+
+            mock_player = Mock()
+            mock_player.getCursor.return_value = mocks['image']['loaded_surface']
+            mock_player.getPosition.return_value = (100, 100)
+
+            game.updateScreen(mock_player, [])
+
+            texts = [t['text'] for t in mocks['font']['font_instance'].rendered_texts]
+            assert ("Seed: 4321" in texts) is visible
+
     def test_print_end_display(self):
         """Test end game display."""
         with full_pygame_mocks() as mocks:

@@ -1,3 +1,5 @@
+"""The player entity: position, size, speed and sprite."""
+
 import pygame
 from typing import Optional, Tuple
 
@@ -5,9 +7,12 @@ from ..utils.config import config
 
 
 class Player:
+    """The player-controlled square; movement rules live in ``Simulation``."""
+
     def __init__(
         self, xPosition: float, yPosition: float, headless: bool = False
     ) -> None:
+        """Place the player; ``headless`` skips loading the sprite."""
         self.headless = headless
         self.cursor: Optional[pygame.Surface]
         if not headless:
@@ -35,10 +40,12 @@ class Player:
         self.position = (self.position[0], yPosition)
 
     def moveX(self, units: float) -> None:
+        """Move horizontally by ``units`` steps (scaled by the player's speed)."""
         new_x = self.position[0] + (units * self.speed)
         self.position = (new_x, self.position[1])
 
     def moveY(self, units: float) -> None:
+        """Move vertically by ``units`` steps (scaled by the player's speed)."""
         new_y = self.position[1] + (units * self.speed)
         self.position = (self.position[0], new_y)
 
@@ -55,6 +62,7 @@ class Player:
         return self.speed
 
     def setCursor(self, image: str) -> None:
+        """Load a new sprite from ``image``; keep the current one if it fails."""
         if not self.headless:
             try:
                 self.cursor = pygame.image.load(image)
@@ -72,6 +80,7 @@ class Player:
         return self.height
 
     def reset(self, xPosition: float, yPosition: float) -> None:
+        """Move the player back to a position and restore the default speed."""
         self.setX(xPosition)
         self.setY(yPosition)
         self.speed = config.PLAYER_SPEED

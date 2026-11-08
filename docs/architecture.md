@@ -53,14 +53,17 @@ infinite_maze/
 │   │
 │   ├── core/                   # Core game logic
 │   │   ├── __init__.py
-│   │   ├── engine.py           # Main game loop and input handling
+│   │   ├── engine.py           # Human / controlled_run adapters (input, rendering, FPS)
+│   │   ├── simulation.py       # Game rules: Simulation.step() (no clock, no display)
+│   │   ├── replay.py           # Record / replay of games
 │   │   ├── game.py             # Game state management
-│   │   └── clock.py            # Timing and frame rate control
+│   │   └── clock.py            # HUD timer and frame rate control
 │   │
 │   ├── entities/               # Game entities
 │   │   ├── __init__.py
 │   │   ├── player.py           # Player character logic
-│   │   └── maze.py             # Maze generation and line entities
+│   │   ├── maze.py             # Seedable maze generation and line entities
+│   │   └── maze_analysis.py    # Geometry-based maze verification (connectivity, solvability)
 │   │
 │   └── utils/                  # Utility modules
 │       ├── __init__.py
@@ -83,18 +86,39 @@ infinite_maze/
 ## 🎮 Core Components
 
 ### 1. Game Engine (`core/engine.py`)
-**Purpose**: Main game loop, input handling, and system coordination
+**Purpose**: Adapters that connect input and output to the rules in `Simulation`
 
 **Key Responsibilities**:
 - Main game loop execution
-- Keyboard input processing and mapping
-- Collision detection between player and maze walls
+- Keyboard input processing, converted to an `Intent` `(dx, dy)`
 - Game state transitions (playing, paused, game over)
-- Frame rate management and timing
+- Frame rate management (`time.delay`) - never inside the rules
+- Optional recording of the intents that reach `Simulation.step()`
 
 **Key Functions**:
 - `maze()`: Main entry point and primary game loop
 - `controlled_run()`: Alternative loop for external control (AI/testing)
+
+### 1b. Simulation (`core/simulation.py`)
+**Purpose**: The single implementation of the game rules.
+
+`Simulation.step(intent)` performs, in order: tick and pace update, horizontal then vertical movement with collision, scroll every `SCROLL_INTERVAL_TICKS` ticks, death check (`x < X_MIN`), `X_MAX` clamp, `Y` clamp, recycling of passed lines, and the optional `max_steps` truncation check. It returns a `StepResult`.
+
+- **Seeded**: a game is reproducible from `(seed, intents)`. An explicit seed regenerates the same maze on restart; no seed means a new random seed each episode.
+- **Tick-based time**: pace advances every `PACE_UPDATE_TICKS` (`PACE_UPDATE_INTERVAL * FPS` = 1800) ticks; this is a frame count, not a wall-clock duration, so the real time between increases depends on the achieved frame rate, scrolling happens when `ticks % SCROLL_INTERVAL_TICKS == 0`. There is no sleep and no wall clock, so simulations run as fast as the CPU allows. Paused frames do not call `step()` and therefore do not advance ticks.
+- **Shared by**: human play (`maze()`), `controlled_run()`, replays and tests.
+
+```
+ keys / wrapper.control / replay file
+            │  Intent (dx, dy)
+            ▼
+   Simulation.step(intent) ──► StepResult(score_delta, moved, terminated, truncated)
+            │
+   Line.generateMaze(..., rng=random.Random(seed))
+```
+
+### 1c. Replays (`core/replay.py`)
+A versioned JSON file `{version, seed, start_pace, maze, intents (run-length encoded [dx, dy, count]), expected}`. `ReplayRecorder` collects intents, `loadReplay` validates version and maze configuration (a mismatch is an error, not silent divergence), `runReplay` plays it back with or without a window. See `infinite-maze --record/--replay`.
 
 ### 2. Game State Manager (`core/game.py`)
 **Purpose**: Central game state and configuration management
@@ -102,8 +126,8 @@ infinite_maze/
 **Key Responsibilities**:
 - Game state tracking (active, paused, game over)
 - Score management and calculation
-- Pace system implementation
-- Screen rendering coordination
+- Holds pace, score and seed values (pace progression itself is in `Simulation`)
+- Screen rendering coordination (HUD shows time and score, plus the seed when one was passed explicitly)
 - Display configuration
 
 **Key Features**:
@@ -148,8 +172,7 @@ infinite_maze/
 **Key Responsibilities**:
 - Frame rate regulation
 - Game time tracking
-- Pace acceleration triggers
-- Pause state time handling
+- Pause state time handling (HUD timer only; pace is tick based, see `Simulation`)
 
 ### 6. Configuration System (`utils/config.py`)
 **Purpose**: Centralized configuration management
@@ -170,8 +193,8 @@ Engine Start → Game Object Creation → Player Spawn → Maze Generation → C
 
 ### 2. Main Game Loop
 ```
-Input Processing → Movement Validation → Position Updates → 
-Collision Detection → Pace Updates → Screen Rendering → Frame Rate Control
+Input Processing → Intent → Simulation.step (pace/tick update → movement with
+collision → scroll → bounds → recycle) → Screen Rendering → Frame Rate Control
 ```
 
 ### 3. Maze Management

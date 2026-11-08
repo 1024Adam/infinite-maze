@@ -1,0 +1,13 @@
+{"description":"Do nothing at pace 1: scrolling pushes the player past X_MIN.","trace":[
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":0},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":1},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":2},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":3},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":4},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":5},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":6},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":7},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":8},
+{"label":"frame","x":80,"y":223,"score":0,"pace":1,"lines":"4d3b133a41","frame":9},
+{"label":"end","x":79,"y":223,"score":0,"pace":1,"lines":"2623023969"}
+]}

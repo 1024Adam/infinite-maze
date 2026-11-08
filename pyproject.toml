@@ -35,7 +35,7 @@ flake8 = "^7.1.2"
 mypy = "^1.0.0"
 
 [tool.poetry.scripts]
-infinite-maze = "infinite_maze.core.engine:maze"
+infinite-maze = "infinite_maze.__main__:main"
 
 [tool.black]
 line-length = 88

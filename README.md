@@ -10,11 +10,11 @@ A fast-paced, infinitely challenging maze navigation game built with Python and 
 ## 🎮 Overview
 Infinite Maze is a dynamic maze-style game where players navigate through a randomly generated maze, attempting to progress as far as possible while maintaining pace. The maze is infinite - as long as you can keep up with the advancing pace, the game continues indefinitely.
 
-**What makes this truly challenging:** The game's pace increases every 30 seconds, forcing players to move faster while navigating increasingly complex maze layouts. Can you keep up with the relentless advance?
+**What makes this truly challenging:** The game's pace increases periodically (every 1800 game ticks), forcing players to move faster while navigating increasingly complex maze layouts. Can you keep up with the relentless advance?
 
 ## ✨ Key Features
 - **Infinite Gameplay**: Procedurally generated mazes that never end
-- **Progressive Difficulty**: Pace increases every 30 seconds for escalating challenge
+- **Progressive Difficulty**: Pace increases periodically for escalating challenge
 - **Smart Scoring**: Gain points for rightward progress, lose points for backtracking
 - **Responsive Controls**: Smooth WASD or arrow key movement
 - **Pause System**: Take a breather when needed
@@ -64,6 +64,21 @@ python -m infinite_maze
 # Direct execution (legacy, still supported)
 python run_game.py
 ```
+
+### Command-Line Options
+```bash
+infinite-maze [--seed N] [--start-pace N] [--record PATH] [--replay PATH] [--headless]
+```
+
+| Option | Description |
+|---|---|
+| `--seed N` | Generate the same maze every time (also on restart). The seed is shown at the bottom-left of the screen; without `--seed` every episode gets a new random seed, which is only logged (not shown) |
+| `--start-pace N` | Start at pace `N` instead of 0 (debugging) |
+| `--record PATH` | Write a replay file for each episode: `PATH`, `PATH-2`, `PATH-3`, ... |
+| `--replay PATH` | Play a recorded replay back in a window |
+| `--headless` | With `--replay`: no window; prints the final state and exits non-zero if it differs from the replay's `expected` state |
+
+A replay is a small JSON file, so a bug can be reported as one file and reproduced with `infinite-maze --replay bug.json --headless`. Local recordings under `replays/` are git-ignored.
 
 ### Development Setup
 ```bash
@@ -147,8 +162,7 @@ The setup script will:
   - +1 point for each rightward movement
   - -1 point for each leftward movement (minimum score: 0)
 - **Pace Mechanic**: 
-  - Starts after 30 seconds
-  - Accelerates every 30 seconds thereafter
+  - Increases every 1800 game ticks (frames); paused time does not count
   - Forces continuous forward progress
 - **Game Over**: When the pace line catches up to your position
 

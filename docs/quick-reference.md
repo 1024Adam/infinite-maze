@@ -23,7 +23,7 @@ A handy reference card for players and developers.
 
 ### 🎯 Game Rules
 - **Goal**: Navigate as far right as possible through infinite maze
-- **Pace**: Starts after 30 seconds, accelerates every 30 seconds
+- **Pace**: Increases every 1800 game ticks (frames) of play
 - **Scoring**: +1 for right, -1 for left, 0 for up/down
 - **Game Over**: When pace line catches your position
 
