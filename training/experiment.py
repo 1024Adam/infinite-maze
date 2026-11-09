@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Mapping, Sequence, Union
 
 from . import config
 from .reward import RewardConfig
+from .shaping import ShapingConfig
 
 SeedSpec = Union[str, Sequence[int]]
 
@@ -77,6 +78,8 @@ class ExperimentConfig:
     max_steps: int = config.EVAL_MAX_STEPS
     frame_skip: int = config.DEFAULT_FRAME_SKIP
     reward: RewardConfig = field(default_factory=RewardConfig)
+    shaping: ShapingConfig = field(default_factory=ShapingConfig)
+    train_reward_scale: float = 1.0  # training only; evaluation stays unscaled
     n_envs: int = 1
     ppo: PPOConfig = field(default_factory=PPOConfig)
     eval_every_timesteps: int = 100_000
@@ -99,6 +102,16 @@ class ExperimentConfig:
         if self.start_pace < 0:
             raise ValueError("start_pace must not be negative")
         self.reward.validate(self.max_steps)
+        if self.shaping.weight < 0:
+            raise ValueError("shaping.weight must not be negative")
+        if self.train_reward_scale <= 0:
+            raise ValueError("train_reward_scale must be positive")
+        # Only enforced when shaping is on, so older configs keep loading.
+        if self.shaping.weight > 0 and self.shaping.gamma != self.ppo.gamma:
+            raise ValueError(
+                f"shaping.gamma ({self.shaping.gamma}) must equal "
+                f"ppo.gamma ({self.ppo.gamma})"
+            )
         resolve_seeds(self.train_seeds)
         for seeds in self.eval_seeds.values():
             resolve_seeds(seeds)
@@ -138,6 +151,9 @@ class ExperimentConfig:
         if "reward" in data:
             _reject_unknown("reward", data["reward"], _names(RewardConfig))
             data["reward"] = RewardConfig(**data["reward"])
+        if "shaping" in data:
+            _reject_unknown("shaping", data["shaping"], _names(ShapingConfig))
+            data["shaping"] = ShapingConfig(**data["shaping"])
         if "ppo" in data:
             _reject_unknown("ppo", data["ppo"], _names(PPOConfig))
             data["ppo"] = PPOConfig(**data["ppo"])

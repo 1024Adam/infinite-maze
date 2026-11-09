@@ -25,6 +25,7 @@ from . import config  # noqa: E402
 from .observation import build_observation  # noqa: E402
 from .observation import flatten_observation, observation_size  # noqa: E402
 from .reward import RewardConfig, RewardFunction  # noqa: E402
+from .shaping import PotentialShaper, ShapingConfig  # noqa: E402
 from .stepping import repeat_action  # noqa: E402
 
 NUM_ACTIONS = len(game_config.MOVEMENT_CONSTANTS)
@@ -36,6 +37,10 @@ class MazeEnv(gym.Env):
     The maze seed is drawn from ``seeds`` with Gymnasium's ``np_random`` (a single
     seed gives the fixed-seed experiment) and always passed explicitly to
     ``Simulation.reset``. ``options={"maze_seed": s}`` forces a specific seed.
+
+    ``shaping`` and ``reward_scale`` are training aids: the step reward is
+    ``(base + shaping) * reward_scale``, with the unscaled parts in ``info``. The
+    defaults leave the reward identical to the evaluation harness.
     """
 
     metadata: Dict[str, Any] = {"render_modes": []}
@@ -47,10 +52,14 @@ class MazeEnv(gym.Env):
         max_steps: int = config.EVAL_MAX_STEPS,
         frame_skip: int = config.DEFAULT_FRAME_SKIP,
         reward_config: Optional[RewardConfig] = None,
+        shaping: Optional[ShapingConfig] = None,
+        reward_scale: float = 1.0,
     ) -> None:
         super().__init__()
         if not seeds:
             raise ValueError("seeds must not be empty")
+        if reward_scale <= 0:
+            raise ValueError("reward_scale must be positive")
         if max_steps <= 0:
             raise ValueError("max_steps must be positive so every episode ends")
         if frame_skip < 1:
@@ -64,6 +73,10 @@ class MazeEnv(gym.Env):
         self.frame_skip = frame_skip
         self.reward_config = rewardConfig
         self._reward = RewardFunction(rewardConfig)
+        self.reward_scale = reward_scale
+        self._shaper = PotentialShaper(
+            shaping if shaping is not None else ShapingConfig(), max_steps
+        )
         self._sim: Optional[Simulation] = None
 
         self.action_space = spaces.Discrete(NUM_ACTIONS)
@@ -102,6 +115,7 @@ class MazeEnv(gym.Env):
             )
         else:
             self._sim.reset(mazeSeed)
+        self._shaper.reset(self._sim)
         return self._observe(self._sim), self._info(self._sim)
 
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
@@ -109,12 +123,16 @@ class MazeEnv(gym.Env):
             raise RuntimeError("call reset() before step()")
         sim = self._sim
         outcome = repeat_action(sim, int(action), self._reward, self.frame_skip)
+        shaping = self._shaper.step(sim, outcome.terminated)
+        info = self._info(sim)
+        info["base_reward"] = outcome.reward
+        info["shaping_reward"] = shaping
         return (
             self._observe(sim),
-            outcome.reward,
+            (outcome.reward + shaping) * self.reward_scale,
             outcome.terminated,
             outcome.truncated,
-            self._info(sim),
+            info,
         )
 
     @property

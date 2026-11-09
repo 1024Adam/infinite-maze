@@ -15,7 +15,9 @@ from training.experiment import ExperimentConfig, load_experiment_config  # noqa
 from training.model_policy import ModelPolicy  # noqa: E402
 from training.train import METRIC_COLUMNS, prepare_run_dir, train  # noqa: E402
 
-SMOKE = Path(__file__).resolve().parents[2] / "training" / "configs" / "smoke.json"
+CONFIG_DIR = Path(__file__).resolve().parents[2] / "training" / "configs"
+SMOKE = CONFIG_DIR / "smoke.json"
+SMOKE_V2 = CONFIG_DIR / "smoke_v2.json"
 
 
 def tiny_config(**overrides):
@@ -50,8 +52,11 @@ class TestRunDirectory:
 @pytest.mark.slow
 @pytest.mark.integration
 class TestSmokeRun:
-    def test_smoke_run_writes_every_artefact_and_the_model_is_evaluable(self, tmp_path):
-        cfg = load_experiment_config(SMOKE)
+    @pytest.mark.parametrize("path", [SMOKE, SMOKE_V2], ids=["v1", "v2_shaped"])
+    def test_smoke_run_writes_every_artefact_and_the_model_is_evaluable(
+        self, tmp_path, path
+    ):
+        cfg = load_experiment_config(path)
         run = tmp_path / cfg.name
 
         train(cfg, run)
@@ -84,3 +89,22 @@ class TestSmokeRun:
             frame_skip=cfg.frame_skip,
         )
         assert report.episodes[0].steps > 0
+
+
+@pytest.mark.unit
+class TestTrainingEnvShaping:
+    def test_training_env_is_shaped_and_scaled_from_the_config(self):
+        from training.train import make_training_env
+
+        cfg = load_experiment_config(SMOKE_V2)
+        env = make_training_env(cfg, cfg.start_pace)
+        try:
+            env.reset()
+            _, rewards, _, infos = env.step([1] * cfg.n_envs)
+        finally:
+            env.close()
+
+        assert cfg.shaping.weight > 0 and cfg.train_reward_scale == 0.05
+        for reward, info in zip(rewards, infos):
+            expected = (info["base_reward"] + info["shaping_reward"]) * 0.05
+            assert reward == pytest.approx(expected, rel=1e-5)

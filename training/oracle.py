@@ -66,6 +66,14 @@ class MazeGeometry:
             else:
                 self.verticalWalls.add(key)
 
+    def cell_of(self, sim: Simulation) -> Cell:
+        """The maze cell containing the centre of the player's box."""
+        player = sim.player
+        worldX = player.getX() + sim.getScrollOffset()
+        column = int((worldX + player.getWidth() / 2 - self.originX) // self.cell)
+        row = int((player.getY() + player.getHeight() / 2 - self.originY) // self.cell)
+        return column, min(max(row, 0), self.rows - 1)
+
     def passable(self, a: Cell, b: Cell) -> bool:
         """Whether adjacent cells ``a`` and ``b`` are connected (no wall between)."""
         (ca, ra), (cb, rb) = a, b
@@ -81,6 +89,22 @@ class MazeGeometry:
             return True
         lower = max(ra, rb)
         return (column % self.cols, lower) not in self.horizontalWalls
+
+
+def distance_field(geometry: MazeGeometry, low: int, target: int) -> Dict[Cell, int]:
+    """BFS distances (in cells) to column ``target``, within columns ``low..target``."""
+    dist: Dict[Cell, int] = {(target, r): 0 for r in range(geometry.rows)}
+    queue = deque(dist)
+    while queue:
+        cell = queue.popleft()
+        for dc, dr in _NEIGHBOUR_STEPS:
+            other = (cell[0] + dc, cell[1] + dr)
+            if other in dist or not (low <= other[0] <= target):
+                continue
+            if geometry.passable(cell, other):
+                dist[other] = dist[cell] + 1
+                queue.append(other)
+    return dist
 
 
 class OraclePolicy(PrivilegedPolicy):
@@ -116,17 +140,7 @@ class OraclePolicy(PrivilegedPolicy):
         if cached is not None:
             return cached
         low = target - self.lookahead - geometry.cols
-        dist: Dict[Cell, int] = {(target, r): 0 for r in range(geometry.rows)}
-        queue = deque(dist)
-        while queue:
-            cell = queue.popleft()
-            for dc, dr in _NEIGHBOUR_STEPS:
-                other = (cell[0] + dc, cell[1] + dr)
-                if other in dist or not (low <= other[0] <= target):
-                    continue
-                if geometry.passable(cell, other):
-                    dist[other] = dist[cell] + 1
-                    queue.append(other)
+        dist = distance_field(geometry, low, target)
         if len(self.distances) > config.ORACLE_CACHE_FIELDS:
             self.distances.clear()
         self.distances[target] = dist
@@ -156,15 +170,7 @@ class OraclePolicy(PrivilegedPolicy):
 
     def current_cell(self, sim: Simulation, geometry: MazeGeometry) -> Cell:
         """The maze cell containing the centre of the player's box."""
-        player = sim.player
-        worldX = player.getX() + sim.getScrollOffset()
-        column = int(
-            (worldX + player.getWidth() / 2 - geometry.originX) // geometry.cell
-        )
-        row = int(
-            (player.getY() + player.getHeight() / 2 - geometry.originY) // geometry.cell
-        )
-        return column, min(max(row, 0), geometry.rows - 1)
+        return geometry.cell_of(sim)
 
     def cells_to_column(self, sim: Simulation, column: int) -> Optional[int]:
         """Shortest path length (cells) from the player's cell to ``column``."""

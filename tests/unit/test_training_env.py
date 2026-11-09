@@ -15,6 +15,7 @@ from training.evaluate import evaluate  # noqa: E402
 from training.observation import observation_size  # noqa: E402
 from training.policies import Policy  # noqa: E402
 from training.reward import RewardConfig  # noqa: E402
+from training.shaping import ShapingConfig  # noqa: E402
 
 MAX_STEPS = 120
 
@@ -164,3 +165,83 @@ class TestRandomAgent:
                     break
             else:
                 pytest.fail("episode did not end within max_steps")
+
+
+@pytest.mark.unit
+class TestShaping:
+    SHAPING = ShapingConfig(weight=44.0, gamma=0.995)
+
+    def rollout(self, env, actions):
+        env.reset(seed=0)
+        steps = []
+        for action in actions:
+            steps.append(env.step(action))
+            if steps[-1][2] or steps[-1][3]:
+                break
+        return steps
+
+    def test_shaping_off_reports_zero_shaping_and_the_base_reward(self):
+        env = make_env(seeds=[3])
+        env.reset(seed=0)
+
+        _, reward, _, _, info = env.step(1)
+
+        assert info["shaping_reward"] == 0.0
+        assert reward == info["base_reward"]
+
+    def test_reward_is_base_plus_shaping_times_scale(self):
+        env = make_env(seeds=[3], shaping=self.SHAPING, reward_scale=0.05)
+
+        steps = self.rollout(env, [1, 1, 3, 1, 4, 2, 1, 0] * 4)
+
+        assert any(step[4]["shaping_reward"] != 0.0 for step in steps)
+        for _, reward, _, _, info in steps:
+            expected = (info["base_reward"] + info["shaping_reward"]) * 0.05
+            assert reward == pytest.approx(expected)
+
+    def test_dying_is_never_rewarded(self):
+        env = make_env(seeds=[3], shaping=self.SHAPING, start_pace=3, max_steps=300)
+        env.reset(seed=0)
+
+        for _ in range(300):
+            _, reward, terminated, _, info = env.step(0)
+            if terminated:
+                break
+        else:
+            pytest.fail("an idle agent at pace 3 must die")
+
+        assert info["shaping_reward"] == 0.0
+        assert reward == pytest.approx(info["base_reward"])
+        assert info["base_reward"] < 0
+
+    def test_shaped_rewards_are_deterministic(self):
+        actions = [1, 1, 3, 1, 4, 1, 2, 0] * 4
+
+        def rewards():
+            env = make_env(seeds=[1, 2, 3], shaping=self.SHAPING, reward_scale=0.05)
+            return [step[1] for step in self.rollout(env, actions)]
+
+        assert rewards() == rewards()
+
+    def test_shaped_env_passes_check_env(self):
+        check_env(
+            make_env(shaping=self.SHAPING, reward_scale=0.05), skip_render_check=True
+        )
+
+    def test_non_positive_scale_is_rejected(self):
+        with pytest.raises(ValueError):
+            make_env(reward_scale=0.0)
+
+    def test_leaving_the_spawn_dead_end_beats_entering_it_on_seed_zero(self):
+        def first_shaping(action_sequence):
+            env = make_env(seeds=[0], shaping=self.SHAPING, max_steps=3000)
+            env.reset(seed=0)
+            return sum(
+                env.step(action)[4]["shaping_reward"] for action in action_sequence
+            )
+
+        # Seed 0's spawn corridor leads right into a dead end; the way on is down.
+        into_dead_end = first_shaping([1] * 6)
+        down_the_corridor = first_shaping([4] * 6)
+
+        assert down_the_corridor > into_dead_end

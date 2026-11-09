@@ -44,6 +44,7 @@ class TestParsing:
             valid(surprise=1),
             valid(reward={"step_penalty": 0.001, "bogus": 1}),
             valid(ppo={"learning_rate": 0.1, "bogus": 1}),
+            valid(shaping={"weight": 1.0, "bogus": 1}),
             valid(curriculum=[{"timesteps": 0, "start_pace": 1, "bogus": 1}]),
         ],
     )
@@ -62,6 +63,9 @@ class TestParsing:
             {"select_on": "missing"},
             {"reward": {"death_penalty": 1.0, "step_penalty": 0.01}},
             {"curriculum": [{"timesteps": 5, "start_pace": 1}] * 2},
+            {"shaping": {"weight": -1.0}},
+            {"train_reward_scale": 0.0},
+            {"shaping": {"weight": 44.0, "gamma": 0.9}},
         ],
     )
     def test_invalid_values_are_rejected(self, overrides):
@@ -99,6 +103,42 @@ class TestSeedsAndCurriculum:
 
     def test_without_a_curriculum_pace_is_start_pace(self):
         assert ExperimentConfig.from_dict(valid(start_pace=3)).pace_at(10**6) == 3
+
+
+@pytest.mark.unit
+class TestShapingConfig:
+    def test_shaping_round_trips(self):
+        cfg = ExperimentConfig.from_dict(
+            valid(shaping={"weight": 44.0, "gamma": 0.995}, train_reward_scale=0.05)
+        )
+
+        again = ExperimentConfig.from_dict(json.loads(json.dumps(cfg.to_dict())))
+
+        assert again == cfg
+        assert cfg.shaping.weight == 44.0 and cfg.train_reward_scale == 0.05
+
+    def test_v1_config_loads_with_shaping_off(self):
+        cfg = load_experiment_config(CONFIG_DIR / "v1_fixed_seed0.json")
+
+        assert cfg.shaping.weight == 0.0
+        assert cfg.train_reward_scale == 1.0
+
+    def test_gamma_is_only_checked_when_shaping_is_on(self):
+        ExperimentConfig.from_dict(
+            valid(shaping={"weight": 0.0, "gamma": 0.9}, ppo={"gamma": 0.995})
+        )
+
+    def test_v2_configs_differ_only_by_shaping_weight(self):
+        control = load_experiment_config(CONFIG_DIR / "v2a_multiseed_control.json")
+        shaped = load_experiment_config(CONFIG_DIR / "v2b_multiseed_shaped.json")
+
+        left, right = control.to_dict(), shaped.to_dict()
+        for key in ("name", "shaping"):
+            left.pop(key)
+            right.pop(key)
+        assert left == right
+        assert (control.shaping.weight, shaped.shaping.weight) == (0.0, 44.0)
+        assert control.select_on == shaped.select_on == "validation"
 
 
 @pytest.mark.unit

@@ -1,0 +1,20 @@
+{
+  "name": "v2b_multiseed_shaped",
+  "algo": "ppo",
+  "train_seeds": "train",
+  "eval_seeds": {"train": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], "validation": "validation"},
+  "select_on": "validation",
+  "start_pace": 0,
+  "curriculum": [],
+  "max_steps": 3000,
+  "frame_skip": 4,
+  "reward": {"progress_weight": 1.0, "step_penalty": 0.001, "death_penalty": 100.0, "truncation_bonus": 0.0},
+  "shaping": {"weight": 44.0, "gamma": 0.995},
+  "train_reward_scale": 0.05,
+  "total_timesteps": 5000000,
+  "n_envs": 8,
+  "ppo": {"policy": "MlpPolicy", "net_arch": [64, 64], "n_steps": 512, "batch_size": 256,
+          "learning_rate": 0.0003, "gamma": 0.995, "gae_lambda": 0.95, "ent_coef": 0.01},
+  "eval_every_timesteps": 250000,
+  "seed": 0
+}

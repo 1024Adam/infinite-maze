@@ -100,6 +100,8 @@ def collect_metadata(cfg: ExperimentConfig) -> Dict[str, Any]:
     return {
         "name": cfg.name,
         "seed": cfg.seed,
+        "shaping": {"weight": cfg.shaping.weight, "gamma": cfg.shaping.gamma},
+        "train_reward_scale": cfg.train_reward_scale,
         "git_commit": git("rev-parse", "HEAD"),
         "git_dirty": git("status", "--porcelain") not in ("", "unknown"),
         "python": platform.python_version(),
@@ -122,6 +124,8 @@ def make_training_env(cfg: ExperimentConfig, start_pace: int) -> VecEnv:
         max_steps=cfg.max_steps,
         frame_skip=cfg.frame_skip,
         reward_config=cfg.reward,
+        shaping=cfg.shaping,
+        reward_scale=cfg.train_reward_scale,
     )
     return make_vec_env(
         factory,

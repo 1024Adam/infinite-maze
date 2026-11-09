@@ -15,6 +15,7 @@ stays free of ML code and dependencies (stdlib + `pygame` only).
 | `oracle.py`, `oracle_stats.py` | Privileged shortest-path solver and its ceiling table / demo export |
 | `stepping.py` | `repeat_action`: the one action-repeat (`frame_skip`) implementation |
 | `experiment.py` | Experiment config (JSON) parsing and validation, stdlib only |
+| `shaping.py`, `shaping_check.py` | Oracle potential shaping for the training reward; reward-ordering gate |
 | `env.py` | `MazeEnv`, the Gymnasium environment (needs `ml-env`) |
 | `model_policy.py`, `train.py` | SB3 model as a `Policy`; PPO training harness (needs `ml-train`) |
 | `expert.py` | Expert ladder (`ladder()` and run report CLI) |
@@ -190,7 +191,7 @@ Findings:
 
 ## Environment
 
-`MazeEnv(seeds, start_pace, max_steps, frame_skip, reward_config)` (Gymnasium):
+`MazeEnv(seeds, start_pace, max_steps, frame_skip, reward_config, shaping, reward_scale)` (Gymnasium; the last two default to no shaping, see below):
 `Discrete(5)` actions, `Box(0, 1, (89,), float32)` observations, reward and
 termination from the shared `RewardFunction` / `Simulation`. `reset(seed=...)` seeds
 Gymnasium's RNG, which draws the maze seed from `seeds` (one seed = fixed-seed
@@ -269,7 +270,90 @@ reward v1):
 | validation | oracle | 1472.6 | 1543.0 | 1477.6 | 2967 | 2% |
 
 Expectation: the fixed-seed agent should clear rung 1 quickly. If it stalls in the
-first dead end, plain reward is not enough and oracle-based shaping (plan section 9)
+first dead end, plain reward is not enough and oracle-based shaping
 is the next step. Held-out (validation) performance is expected to lag because the
 observation has no memory; that is the next experiment, not a pipeline failure. Look
 at the best and worst replays in the overlay before trusting any number.
+
+## Oracle shaping and the v2 experiments
+
+v1 stalled for two reasons: one training maze, and a reward that pays `+22` per cell
+for entering a dead end. v2 fixes them separately so each effect is measurable:
+
+| Config | Training seeds | `shaping.weight` | `train_reward_scale` |
+|---|---|---|---|
+| `configs/v2a_multiseed_control.json` | `train` (0-99) | 0 | 0.05 |
+| `configs/v2b_multiseed_shaped.json` | `train` (0-99) | 44 | 0.05 |
+
+Both: `start_pace` 0, `max_steps` 3000, `frame_skip` 4, `n_envs` 8, 5M timesteps,
+v1 reward and PPO values, `select_on: "validation"`, evaluation every 250k steps on
+train seeds 0-19 and the 50 validation seeds. `configs/smoke_v2.json` is the ~10 s
+shaped smoke run.
+
+**Shaping** (`shaping.py`, stdlib only). The maze is periodic and fixed in world
+coordinates, so one BFS cell-distance field `d(cell)` from spawn to a column the
+player cannot reach within `max_steps` is valid for the whole episode
+(`PotentialField`, built at `reset()`, 2-3 ms). `MazeEnv.step` adds, once per
+decision (after action repeat):
+
+```text
+F = weight * (gamma * phi(after) - phi(before)),   phi = -d(cell)
+reward = (base_reward + F) * train_reward_scale
+info["base_reward"], info["shaping_reward"]        # unscaled
+```
+
+- `F` is 0 on the terminating transition, so `death_penalty` alone punishes death
+  and dying is never rewarded. A truncated step keeps its normal `F`.
+- `weight` 44 is twice the cell size (22 px of progress per cell): entering a dead
+  end nets `22 - 44`, backing out `-22 + 44`, the correct detour with no x progress
+  `+44`. `shaping.gamma` must equal `ppo.gamma` (checked when `weight > 0`).
+- A cell outside the field raises; it never silently returns 0.
+- The potential is privileged: it is in the training reward only, never in the
+  observation. `evaluate()`, `ModelPolicy`, baselines and the expert ladder use the
+  unshaped `reward`, so tables stay comparable with v1.
+- `ep_return_mean` in `metrics.csv` is the **shaped, scaled** training return; use
+  `ep_score_mean` and the evaluation tables to compare runs.
+
+### Reward-ordering gate
+
+```bash
+poetry run python -m training.shaping_check --num-seeds 20   # ~25 s, exit 1 on failure
+```
+
+Random, right, heuristic and oracle on train seeds 0-19 (`max_steps` 3000,
+`frame_skip` 4, `weight` 44, `train_reward_scale` 0.05). The gate ranks the
+**discounted** training return (one `gamma` per decision, shifted by the start
+potential, a constant per seed), because that is what PPO maximises:
+
+| Policy | Discounted (gate) | Undiscounted (info) |
+|---|---|---|
+| oracle | 12.25 | 2015.70 |
+| heuristic | -7.79 | 2185.16 |
+| right | -29.02 | 1719.84 |
+| random | -504.09 | 121.59 |
+
+Ordering oracle > heuristic > right > random holds. Note the undiscounted sum does
+**not** rank correctly (heuristic above oracle): with `gamma < 1` the potential
+`-d` pays `weight * (1 - gamma) * d` per decision just for being far from the goal,
+and that term is exactly compensated in the discounted return (potential shaping is
+policy invariant under discounting). Consequences: training-return magnitudes
+(`ep_return_mean`) are inflated and dominated by that term, and the value function
+has a large state-dependent offset (`weight * d`, not observable). Watch
+`explained_variance` and `value_loss` in the v2b run; if they stall, lower
+`train_reward_scale` first (the smoke run's `value_loss` stayed at 18-29).
+`tests/functional/test_training_shaping_gate.py` (slow) keeps the ordering checked.
+
+### Running v2 (long runs: launch yourself, one after the other)
+
+```bash
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy poetry run python -m training.train \
+  --config training/configs/v2a_multiseed_control.json 2>&1 | tee training/runs/v2a_multiseed_control.log
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy poetry run python -m training.train \
+  --config training/configs/v2b_multiseed_shaped.json 2>&1 | tee training/runs/v2b_multiseed_shaped.log
+poetry run python -m training.expert --run training/runs/v2a_multiseed_control --model best
+poetry run python -m training.expert --run training/runs/v2b_multiseed_shaped --model best
+```
+
+Each run is roughly an hour. Results (heuristic, oracle, v2a, v2b on validation and
+on train seeds 0-19, the success row that was hit, and the best
+and worst replays reviewed in the overlay) are **not measured yet**.
