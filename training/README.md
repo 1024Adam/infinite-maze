@@ -354,6 +354,88 @@ poetry run python -m training.expert --run training/runs/v2a_multiseed_control -
 poetry run python -m training.expert --run training/runs/v2b_multiseed_shaped --model best
 ```
 
-Each run is roughly an hour. Results (heuristic, oracle, v2a, v2b on validation and
-on train seeds 0-19, the success row that was hit, and the best
-and worst replays reviewed in the overlay) are **not measured yet**.
+Each run is roughly an hour.
+
+### v2 results
+
+Setup: configs `v2a_multiseed_control.json` / `v2b_multiseed_shaped.json`, git commit
+`40d694e` (dirty), `start_pace` 0, `max_steps` 3000, `frame_skip` 4, training seeds
+0-99, 5M timesteps, seed 0, one run per config. `best` selected on validation; same
+settings for every baseline row (`training.expert`).
+
+| Seeds | Policy | Mean return | Mean score | Mean steps | Death rate | Oracle fraction |
+|---|---|---|---|---|---|---|
+| validation (50) | random | -96.4 | 4.8 | 391 | 100% | |
+| validation | right | -36.3 | 58.1 | 2362 | 92% | |
+| validation | heuristic | 197.0 | 200.0 | 3000 | 0% | 13.5% |
+| validation | oracle | 1472.6 | 1477.6 | 2967 | 2% | |
+| validation | v2a best (unshaped) | 181.6 | 190.5 | 2982 | 6% | 12.9% |
+| validation | v2b best (shaped) | 131.4 | 144.4 | 2955 | 10% | 9.8% |
+| train 0-19 | heuristic | 195.8 | 198.8 | 3000 | 0% | |
+| train 0-19 | oracle | 1517.4 | 1520.4 | 3000 | 0% | |
+| train 0-19 | v2a best | 185.0 | 192.9 | 2990 | 5% | 12.7% |
+| train 0-19 | v2b best | 109.2 | 132.1 | 2884 | 20% | 8.7% |
+
+Ladder: **rung 0 for both, on train and validation** (v1 reached rung 1 on its one
+memorised seed). Train-20 and validation scores are equal, so nothing is memorised.
+Evaluation is noisy: consecutive v2a validation evaluations swing between 73 and 177
+return (`eval.json`), so `best` carries selection bias; `final` (v2a validation 177 /
+186) is as good as `best`.
+
+Success rows of plan 4 section 5: no minimum or target outcome. v2b is below the
+heuristic with train-20 score 132 (< 400, the "reward bug" row), and v2a is not worse
+than v2b, so shaping did not help. See the diagnosis below for why this is not
+simply a sign error.
+
+### Findings
+
+Measured on the 50 validation seeds, replaying each model with the shared potential
+field (path progress = cells of BFS distance gained, a diagnostic, not a metric):
+
+| Policy | Score | Path cells gained | Episodes with no progress for > 1000 ticks |
+|---|---|---|---|
+| heuristic | 200.0 | 8.1 | 25 / 50 |
+| oracle | 1477.6 | 123.4 | 0 / 50 |
+| v2a best | 190.5 | 7.9 | 27 / 50 |
+| v2b best | 144.4 | 5.8 | 12 / 50 |
+
+1. **Every model stops after about 8 path cells**, the same place the heuristic stops
+   (score about 200 is the first dead end). Stochastic evaluation scores the same as
+   deterministic (v2a 201, v2b 154), so this is not an argmax artefact. v2a sits in a
+   single cell in 19/50 episodes; v2b dithers (up/down/right mix) within a few cells.
+2. **v2a (multi-seed, no shaping) learns the heuristic**: training `ep_score_mean`
+   plateaus around 230 from about 600k steps, `value_loss` about 0.1,
+   `explained_variance` 0.9. Five times more steps did not move it.
+3. **v2b (shaping) trains worse, and the metrics show why**: `value_loss` is 40-1000
+   (v2a: 0.1), `ep_return_mean` sits flat near 2,200 from 1.25M steps while score stays
+   at 145-155, and early evaluation death rates were 90% (v2a 20-30%). The shaped
+   return is almost entirely the discount-leak term described under the gate
+   (`weight * (1 - gamma) * d` per decision, about 60 unscaled per decision at
+   d = 270), a large amount that depends on `d`, which the 89-float observation
+   cannot see. The learning signal (+/-22 scaled by 0.05, about 1 per cell) is small
+   next to the value-function error on that term. This is a diagnosis from the
+   metrics, not a tested cause.
+4. **The reward ordering gate passing was necessary, not sufficient**: it checks the
+   ranking of whole-episode discounted returns, not learnability.
+5. **Why neither run finds the detour**: the correct move at the first obstacle
+   depends on the maze beyond the 4.5-cell window, and the policy has no memory, so
+   the dead end looks like a corridor until it is inside it. Shaping tells the agent
+   the answer only through a reward it cannot predict from its observation.
+
+Replays to watch with the overlay (`python -m training.overlay --replay <file>`):
+`training/runs/v2a_multiseed_control/replays/best/validation-worst-seed1006.json`,
+`.../v2a_multiseed_control/replays/best/train-worst-seed0.json`,
+`training/runs/v2b_multiseed_shaped/replays/best/` (worst per set). The best-episode
+replays were not reviewed in the overlay yet; the findings above come from the
+programmatic replay of the models, not from watching them.
+
+### Next step
+
+Shaping as specified should not be repeated. The plan's section 8 candidates apply
+(partial observability): behaviour cloning from `training.oracle_stats
+--export-demos` then PPO fine-tuning, a wider raster or recently-visited channel, or
+frame stacking / recurrent PPO. If shaping is revisited, use `gamma` 1 inside `F`
+(no discount leak) or a potential the policy can observe, and re-run the gate with a
+learnability check first. Per the plan, single runs at `seed` 0 are one sample; the
+v2a vs v2b gap (50 return) is larger than v2a's own evaluation noise only on the last
+8 evaluations, so confirm with seeds 1 and 2 before treating v2b as worse.
