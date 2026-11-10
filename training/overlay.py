@@ -44,7 +44,11 @@ class Overlay:
         reward: Optional[RewardFunction] = None,
         show_hitbox: bool = False,
         enabled: bool = True,
+        grid_size: int = config.OBS_GRID_SIZE,
+        cell_px: int = config.OBS_GRID_CELL_PX,
     ) -> None:
+        self.grid_size = grid_size
+        self.cell_px = cell_px
         self.reward = reward if reward is not None else RewardFunction()
         self.show_hitbox = show_hitbox
         self.enabled = enabled
@@ -76,7 +80,7 @@ class Overlay:
         self._poll_toggle()
         if not self.enabled or self.sim is None:
             return
-        obs = build_observation(self.sim)
+        obs = build_observation(self.sim, self.grid_size, self.cell_px)
         self._draw_window(surface, obs)
         self._draw_rays(surface, obs)
         if self.show_hitbox:
@@ -95,9 +99,9 @@ class Overlay:
 
     def _draw_window(self, surface: pygame.Surface, obs: Observation) -> None:
         assert self.sim is not None
-        size = config.OBS_GRID_SIZE
-        cell = config.OBS_GRID_CELL_PX
-        originX, originY = window_origin(self.sim)
+        size = self.grid_size
+        cell = self.cell_px
+        originX, originY = window_origin(self.sim, size, cell)
         tint = pygame.Surface((size * cell, size * cell), pygame.SRCALPHA)
         for row, cells in enumerate(obs.grid):
             for col, value in enumerate(cells):
@@ -281,11 +285,15 @@ def run_replay_overlay(
     replay: Dict[str, Any],
     reward_config: Optional[RewardConfig] = None,
     show_hitbox: bool = False,
+    grid_size: int = config.OBS_GRID_SIZE,
+    cell_px: int = config.OBS_GRID_CELL_PX,
 ) -> int:
     """Play ``replay`` in a window with the overlay until ESC or window close."""
     game = Game()
     player = Player(game_config.PLAYER_START_X, game_config.PLAYER_START_Y)
-    overlay = Overlay(RewardFunction(reward_config), show_hitbox)
+    overlay = Overlay(
+        RewardFunction(reward_config), show_hitbox, True, grid_size, cell_px
+    )
     replay_player = ReplayPlayer(replay, overlay, game, player)
 
     running = True
@@ -313,9 +321,13 @@ def run_human_overlay(
     start_pace: int = game_config.START_PACE,
     reward_config: Optional[RewardConfig] = None,
     show_hitbox: bool = False,
+    grid_size: int = config.OBS_GRID_SIZE,
+    cell_px: int = config.OBS_GRID_CELL_PX,
 ) -> int:
     """Play ``engine.maze()`` normally, with the overlay following the game."""
-    overlay = Overlay(RewardFunction(reward_config), show_hitbox)
+    overlay = Overlay(
+        RewardFunction(reward_config), show_hitbox, True, grid_size, cell_px
+    )
     original = engine.Simulation
     setattr(engine, "Simulation", make_tracked_simulation(overlay))
     try:
@@ -339,6 +351,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--start-pace", type=int, default=game_config.START_PACE)
     parser.add_argument("--reward-config", metavar="PATH", help="JSON RewardConfig")
     parser.add_argument("--hitbox", action="store_true", help="draw the player hitbox")
+    parser.add_argument(
+        "--grid-size",
+        type=int,
+        default=config.OBS_GRID_SIZE,
+        help="raster size to draw (the size the model was trained with)",
+    )
+    parser.add_argument("--cell-px", type=int, default=config.OBS_GRID_CELL_PX)
     return parser
 
 
@@ -349,8 +368,21 @@ def main(argv: Optional[List[str]] = None) -> int:
         load_reward_config(args.reward_config) if args.reward_config else None
     )
     if args.replay:
-        return run_replay_overlay(loadReplay(args.replay), reward_config, args.hitbox)
-    return run_human_overlay(args.seed, args.start_pace, reward_config, args.hitbox)
+        return run_replay_overlay(
+            loadReplay(args.replay),
+            reward_config,
+            args.hitbox,
+            args.grid_size,
+            args.cell_px,
+        )
+    return run_human_overlay(
+        args.seed,
+        args.start_pace,
+        reward_config,
+        args.hitbox,
+        args.grid_size,
+        args.cell_px,
+    )
 
 
 if __name__ == "__main__":

@@ -22,6 +22,9 @@ class Policy(ABC):
     """Maps observations to discrete actions (the ``MOVEMENT_CONSTANTS`` space)."""
 
     name = "policy"
+    # Raster this policy reads; ``evaluate()`` builds its observations with these.
+    grid_size: int = config.OBS_GRID_SIZE
+    cell_px: int = config.OBS_GRID_CELL_PX
 
     def reset(self, seed: int) -> None:
         """Prepare for a new episode on the maze generated from ``seed``."""

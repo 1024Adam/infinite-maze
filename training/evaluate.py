@@ -103,7 +103,8 @@ def _run_episode(
         if isinstance(policy, PrivilegedPolicy):
             action = policy.act_privileged(sim)
         else:
-            action = policy.act(build_observation(sim))
+            obs = build_observation(sim, policy.grid_size, policy.cell_px)
+            action = policy.act(obs)
         outcome = repeat_action(sim, action, reward, frame_skip, recorder)
         total += outcome.reward
         if outcome.terminated or outcome.truncated:
@@ -186,7 +187,12 @@ def format_table(reports: Sequence[EvalReport]) -> str:
     return "\n".join(rows)
 
 
-def build_policy(name: str, model_path: Optional[str] = None) -> Policy:
+def build_policy(
+    name: str,
+    model_path: Optional[str] = None,
+    grid_size: int = config.OBS_GRID_SIZE,
+    cell_px: int = config.OBS_GRID_CELL_PX,
+) -> Policy:
     """Create a policy by CLI name (baselines, ``oracle`` or a saved ``model``)."""
     if name == "oracle":
         from .oracle import OraclePolicy
@@ -197,7 +203,7 @@ def build_policy(name: str, model_path: Optional[str] = None) -> Policy:
             raise ValueError("--policy model requires --model PATH")
         from .model_policy import ModelPolicy
 
-        return ModelPolicy.load(model_path)
+        return ModelPolicy.load(model_path, grid_size, cell_px)
     return make_policy(name)
 
 
@@ -215,6 +221,8 @@ def build_parser() -> argparse.ArgumentParser:
         "solver; 'model' needs --model",
     )
     parser.add_argument("--model", default=None, help="SB3 model .zip for 'model'")
+    parser.add_argument("--grid-size", type=int, default=config.OBS_GRID_SIZE)
+    parser.add_argument("--cell-px", type=int, default=config.OBS_GRID_CELL_PX)
     parser.add_argument(
         "--frame-skip",
         type=int,
@@ -251,7 +259,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     reports = []
     for name in names:
         report = evaluate(
-            build_policy(name, args.model),
+            build_policy(name, args.model, args.grid_size, args.cell_px),
             seeds,
             args.max_steps,
             args.start_pace,
@@ -263,7 +271,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             worst = report.worst_seed()
             path = Path(args.worst_replay_dir) / f"{name}-worst-seed{worst}.json"
             replay = record_replay(
-                build_policy(name, args.model),
+                build_policy(name, args.model, args.grid_size, args.cell_px),
                 worst,
                 args.max_steps,
                 args.start_pace,

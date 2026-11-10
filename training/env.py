@@ -54,6 +54,8 @@ class MazeEnv(gym.Env):
         reward_config: Optional[RewardConfig] = None,
         shaping: Optional[ShapingConfig] = None,
         reward_scale: float = 1.0,
+        grid_size: int = config.OBS_GRID_SIZE,
+        cell_px: int = config.OBS_GRID_CELL_PX,
     ) -> None:
         super().__init__()
         if not seeds:
@@ -74,6 +76,8 @@ class MazeEnv(gym.Env):
         self.reward_config = rewardConfig
         self._reward = RewardFunction(rewardConfig)
         self.reward_scale = reward_scale
+        self.grid_size = grid_size
+        self.cell_px = cell_px
         self._shaper = PotentialShaper(
             shaping if shaping is not None else ShapingConfig(), max_steps
         )
@@ -81,11 +85,11 @@ class MazeEnv(gym.Env):
 
         self.action_space = spaces.Discrete(NUM_ACTIONS)
         self.observation_space = spaces.Box(
-            low=0.0, high=1.0, shape=(observation_size(),), dtype=np.float32
+            low=0.0, high=1.0, shape=(observation_size(grid_size),), dtype=np.float32
         )
 
     def _observe(self, sim: Simulation) -> np.ndarray:
-        flat = flatten_observation(build_observation(sim))
+        flat = flatten_observation(build_observation(sim, self.grid_size, self.cell_px))
         observation: np.ndarray = np.asarray(flat, dtype=np.float32)
         return observation
 

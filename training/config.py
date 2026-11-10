@@ -11,6 +11,7 @@ OBS_GRID_SIZE: int = 9  # raster is OBS_GRID_SIZE x OBS_GRID_SIZE cells
 OBS_GRID_CELL_PX: int = 11  # 9 * 11 = 99 px, about 4.5 maze cells
 OBS_RAY_CAP_PX: int = 110  # rays report at most this distance
 OBS_PACE_CAP: int = 10  # pace is normalised against this value
+OBS_MAX_WINDOW_PX: int = 640  # a raster may not look beyond the rendered screen width
 
 # Reward
 REWARD_PROGRESS_WEIGHT: float = 1.0  # per pixel moved right (negative if left)
@@ -22,12 +23,18 @@ REWARD_TRUNCATION_BONUS: float = 0.0  # on truncated (survived the cap)
 TRAIN_SEEDS = range(0, 100)
 VALIDATION_SEEDS = range(1000, 1050)
 TEST_SEEDS = range(2000, 2050)
+# More training mazes (plan 4 D18), added after the sweep showed that 80-100 mazes
+# are memorised. Training and probe fitting only: never evaluate "validation"
+# claims on it. The sets above are unchanged.
+TRAIN_EXTRA_SEEDS = range(3000, 4000)
 SEED_SETS = {
     "train": TRAIN_SEEDS,
     "validation": VALIDATION_SEEDS,
     "test": TEST_SEEDS,
+    "train_extra": TRAIN_EXTRA_SEEDS,
 }
 EVAL_MAX_STEPS: int = 2000
+EVAL_MAX_STEPS_PROBE: int = 3000  # the horizon of the v1/v2 tables and ladder
 EVAL_START_PACE: int = 0
 DEFAULT_FRAME_SKIP: int = 4
 
@@ -48,6 +55,27 @@ EXPERT_LADDER = {
     "max_death_rate": 0.1,  # ... with death rate <= this
 }
 RUNS_DIR = Path(__file__).parent / "runs"
+
+# Observation probe (plan 4 section 10): behaviour cloning + DAgger on oracle labels
+# decides which observation can solve the mazes before any new PPO run. It is fitted
+# on train_extra mazes only (the 80 mazes of train 20-99 were memorised in the first
+# sweep). Train seeds 0-19 are held out for action accuracy, and the validation seeds
+# are only ever played, never labelled. The test seeds are not used.
+PROBE_FIT_SEEDS = range(3000, 3400)
+PROBE_HOLDOUT_SEEDS = range(0, 20)
+PROBE_FIT_EVAL_SEEDS = range(3000, 3020)  # fitted mazes played for the "fit" score
+PROBE_HIDDEN = (64, 64)  # same shape as the PPO policy
+PROBE_BETAS = (1.0, 0.3, 0.1, 0.0)  # P(oracle acts) per round; round 0 is plain cloning
+PROBE_EPOCHS: int = 30  # per round, warm-started from the previous round
+PROBE_BATCH: int = 512
+PROBE_LEARNING_RATE: float = 0.001
+PROBE_STRIDE: int = 4  # keep every n-th decision (consecutive states are near-copies)
+PROBE_WORKERS: int = 16
+PROBE_FIT_THREADS: int = 8  # torch threads while fitting (rollout workers are idle)
+PROBE_WINDOWS = (9, 15, 21, 31)  # raster sizes swept; 31 * 11 px = 341 px, on screen
+PROBE_CONTROL_HIDDEN = (256, 256)  # capacity control for the widest window
+PROBE_G1_PASS_SCORE: float = 600.0  # a window reaching this holds the answer (~40%)
+PROBE_G1_FAIL_SCORE: float = 250.0  # every window at or below this: memory needed
 
 # Benchmark
 BENCH_SEEDS: int = 10

@@ -43,7 +43,13 @@ class Game:
             try:
                 iconImage = pygame.image.load(config.get_image_path("icon"))
                 try:
-                    self.icon.blit(iconImage, (0, 0))
+                    # The source artwork is larger than the window icon.
+                    self.icon.blit(
+                        pygame.transform.smoothscale(
+                            iconImage, (config.ICON_SIZE, config.ICON_SIZE)
+                        ),
+                        (0, 0),
+                    )
                 except TypeError:
                     # Some tests provide lightweight mock surfaces that pygame
                     # cannot blit; keep the default icon surface in that case.

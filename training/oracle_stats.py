@@ -44,6 +44,8 @@ def run_episode(
     policy: OraclePolicy,
     frame_skip: int,
     demos: Optional[IO[str]] = None,
+    gridSize: int = config.OBS_GRID_SIZE,
+    cellPx: int = config.OBS_GRID_CELL_PX,
 ) -> OracleEpisode:
     """Play one episode, tracking first-tile clearing (and exporting demos)."""
     policy.reset(sim.getSeed())
@@ -60,7 +62,7 @@ def run_episode(
             record = {
                 "seed": sim.getSeed(),
                 "tick": sim.getTicks(),
-                "obs": flatten_observation(build_observation(sim)),
+                "obs": flatten_observation(build_observation(sim, gridSize, cellPx)),
                 "action": action,
             }
             demos.write(json.dumps(record) + "\n")
@@ -88,6 +90,8 @@ def stats_for_pace(
     max_steps: int,
     frame_skip: int,
     demos: Optional[IO[str]] = None,
+    gridSize: int = config.OBS_GRID_SIZE,
+    cellPx: int = config.OBS_GRID_CELL_PX,
 ) -> Dict[str, Any]:
     """Aggregate oracle results over ``seeds`` at one start pace."""
     policy = OraclePolicy()
@@ -96,7 +100,7 @@ def stats_for_pace(
     for index, seed in enumerate(seeds):
         if index > 0:
             sim.reset(seed)
-        episodes.append(run_episode(sim, policy, frame_skip, demos))
+        episodes.append(run_episode(sim, policy, frame_skip, demos, gridSize, cellPx))
 
     clearTimes = [e.tile_clear_step for e in episodes if e.tile_clear_step is not None]
     ratios = [
@@ -157,6 +161,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-seeds", type=int, default=None)
     parser.add_argument("--max-steps", type=int, default=config.EVAL_MAX_STEPS)
     parser.add_argument("--frame-skip", type=int, default=1)
+    parser.add_argument("--grid-size", type=int, default=config.OBS_GRID_SIZE)
+    parser.add_argument("--cell-px", type=int, default=config.OBS_GRID_CELL_PX)
     parser.add_argument("--min-pace", type=int, default=0)
     parser.add_argument("--max-pace", type=int, default=config.ORACLE_STATS_MAX_PACE)
     parser.add_argument("--out", default=None, help="write the full stats as JSON")
@@ -182,7 +188,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         rows = []
         for pace in range(args.min_pace, args.max_pace + 1):
             rows.append(
-                stats_for_pace(seeds, pace, args.max_steps, args.frame_skip, demos)
+                stats_for_pace(
+                    seeds,
+                    pace,
+                    args.max_steps,
+                    args.frame_skip,
+                    demos,
+                    args.grid_size,
+                    args.cell_px,
+                )
             )
             print(f"start_pace {pace} done", file=sys.stderr, flush=True)
     finally:

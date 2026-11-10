@@ -47,6 +47,25 @@ class CurriculumStage:
     start_pace: int
 
 
+@dataclass(frozen=True)
+class ObservationConfig:
+    """Size of the egocentric wall raster (the rest of the observation is fixed)."""
+
+    grid_size: int = config.OBS_GRID_SIZE
+    cell_px: int = config.OBS_GRID_CELL_PX
+
+    def validate(self) -> None:
+        """Reject rasters that are empty or look beyond the rendered screen."""
+        if self.grid_size < 1 or self.cell_px < 1:
+            raise ValueError("observation grid_size and cell_px must be at least 1")
+        if self.grid_size * self.cell_px > config.OBS_MAX_WINDOW_PX:
+            raise ValueError(
+                f"observation window {self.grid_size * self.cell_px} px exceeds the "
+                f"{config.OBS_MAX_WINDOW_PX} px screen: the agent may only see what "
+                f"is rendered"
+            )
+
+
 @dataclass
 class PPOConfig:
     """PPO hyper-parameters (starting points, not tuned values)."""
@@ -79,6 +98,7 @@ class ExperimentConfig:
     frame_skip: int = config.DEFAULT_FRAME_SKIP
     reward: RewardConfig = field(default_factory=RewardConfig)
     shaping: ShapingConfig = field(default_factory=ShapingConfig)
+    observation: ObservationConfig = field(default_factory=ObservationConfig)
     train_reward_scale: float = 1.0  # training only; evaluation stays unscaled
     n_envs: int = 1
     ppo: PPOConfig = field(default_factory=PPOConfig)
@@ -102,6 +122,7 @@ class ExperimentConfig:
         if self.start_pace < 0:
             raise ValueError("start_pace must not be negative")
         self.reward.validate(self.max_steps)
+        self.observation.validate()
         if self.shaping.weight < 0:
             raise ValueError("shaping.weight must not be negative")
         if self.train_reward_scale <= 0:
@@ -151,6 +172,11 @@ class ExperimentConfig:
         if "reward" in data:
             _reject_unknown("reward", data["reward"], _names(RewardConfig))
             data["reward"] = RewardConfig(**data["reward"])
+        if "observation" in data:
+            _reject_unknown(
+                "observation", data["observation"], _names(ObservationConfig)
+            )
+            data["observation"] = ObservationConfig(**data["observation"])
         if "shaping" in data:
             _reject_unknown("shaping", data["shaping"], _names(ShapingConfig))
             data["shaping"] = ShapingConfig(**data["shaping"])

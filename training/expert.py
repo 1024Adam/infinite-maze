@@ -104,7 +104,12 @@ def run_report(cfg: ExperimentConfig, model_path: str) -> Dict[str, Any]:
     for label, seeds in cfg.eval_seed_lists().items():
         reports = {
             name: evaluate(
-                build_policy(name, model_path),
+                build_policy(
+                    name,
+                    model_path,
+                    cfg.observation.grid_size,
+                    cfg.observation.cell_px,
+                ),
                 seeds,
                 cfg.max_steps,
                 cfg.start_pace,
@@ -115,7 +120,7 @@ def run_report(cfg: ExperimentConfig, model_path: str) -> Dict[str, Any]:
         }
         result = ladder(reports["model"], reports["heuristic"], reports["oracle"])
         out["sets"][label] = {
-            "memorisable": label == "train" or len(seeds) == 1,
+            "memorisable": label.startswith("train") or len(seeds) == 1,
             "ladder": result.to_dict(),
             "baselines": {n: r.summary() for n, r in reports.items()},
         }

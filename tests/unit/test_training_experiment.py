@@ -148,3 +148,36 @@ class TestCommittedConfigs:
         cfg = load_experiment_config(path)
 
         assert cfg.name == path.stem
+
+
+@pytest.mark.unit
+class TestObservationConfig:
+    def test_default_matches_the_constants_and_old_configs_load(self):
+        cfg = load_experiment_config(CONFIG_DIR / "v1_fixed_seed0.json")
+
+        assert (cfg.observation.grid_size, cfg.observation.cell_px) == (
+            config.OBS_GRID_SIZE,
+            config.OBS_GRID_CELL_PX,
+        )
+
+    def test_observation_round_trips(self):
+        cfg = ExperimentConfig.from_dict(
+            valid(observation={"grid_size": 31, "cell_px": 11})
+        )
+
+        again = ExperimentConfig.from_dict(json.loads(json.dumps(cfg.to_dict())))
+
+        assert again == cfg and again.observation.grid_size == 31
+
+    @pytest.mark.parametrize(
+        "observation",
+        [
+            {"grid_size": 0},
+            {"cell_px": 0},
+            {"grid_size": 59, "cell_px": 11},  # 649 px: wider than the screen
+            {"grid_size": 9, "bogus": 1},
+        ],
+    )
+    def test_invalid_observation_is_rejected(self, observation):
+        with pytest.raises(ValueError):
+            ExperimentConfig.from_dict(valid(observation=observation))

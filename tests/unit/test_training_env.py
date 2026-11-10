@@ -245,3 +245,19 @@ class TestShaping:
         down_the_corridor = first_shaping([4] * 6)
 
         assert down_the_corridor > into_dead_end
+
+
+@pytest.mark.unit
+class TestObservationSize:
+    def test_default_observation_is_unchanged(self):
+        env = make_env()
+
+        assert env.observation_space.shape == (observation_size(),)
+        assert env.reset(seed=0)[0].shape == (89,)
+
+    def test_wider_raster_changes_the_vector_and_passes_check_env(self):
+        env = make_env(grid_size=21)
+
+        assert env.observation_space.shape == (observation_size(21),)
+        assert env.reset(seed=0)[0].shape == (21 * 21 + 8,)
+        check_env(make_env(grid_size=21), skip_render_check=True)

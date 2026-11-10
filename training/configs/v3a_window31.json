@@ -1,0 +1,20 @@
+{
+  "name": "v3a_window31",
+  "algo": "ppo",
+  "train_seeds": "train_extra",
+  "eval_seeds": {"train_extra": [3000, 3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010, 3011, 3012, 3013, 3014, 3015, 3016, 3017, 3018, 3019], "validation": "validation"},
+  "select_on": "validation",
+  "start_pace": 0,
+  "curriculum": [],
+  "max_steps": 3000,
+  "frame_skip": 4,
+  "reward": {"progress_weight": 1.0, "step_penalty": 0.001, "death_penalty": 100.0, "truncation_bonus": 0.0},
+  "shaping": {"weight": 0.0, "gamma": 0.995},
+  "train_reward_scale": 0.05,
+  "total_timesteps": 5000000,
+  "n_envs": 8,
+  "ppo": {"policy": "MlpPolicy", "net_arch": [64, 64], "n_steps": 512, "batch_size": 256, "learning_rate": 0.0003, "gamma": 0.995, "gae_lambda": 0.95, "ent_coef": 0.01},
+  "eval_every_timesteps": 250000,
+  "seed": 0,
+  "observation": {"grid_size": 31, "cell_px": 11}
+}

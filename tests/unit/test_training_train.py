@@ -18,6 +18,7 @@ from training.train import METRIC_COLUMNS, prepare_run_dir, train  # noqa: E402
 CONFIG_DIR = Path(__file__).resolve().parents[2] / "training" / "configs"
 SMOKE = CONFIG_DIR / "smoke.json"
 SMOKE_V2 = CONFIG_DIR / "smoke_v2.json"
+SMOKE_V3 = CONFIG_DIR / "smoke_v3.json"
 
 
 def tiny_config(**overrides):
@@ -52,7 +53,9 @@ class TestRunDirectory:
 @pytest.mark.slow
 @pytest.mark.integration
 class TestSmokeRun:
-    @pytest.mark.parametrize("path", [SMOKE, SMOKE_V2], ids=["v1", "v2_shaped"])
+    @pytest.mark.parametrize(
+        "path", [SMOKE, SMOKE_V2, SMOKE_V3], ids=["v1", "v2_shaped", "v3_window31"]
+    )
     def test_smoke_run_writes_every_artefact_and_the_model_is_evaluable(
         self, tmp_path, path
     ):
@@ -83,7 +86,11 @@ class TestSmokeRun:
         assert set(history[-1]["sets"]) == set(cfg.eval_seeds)
 
         report = evaluate(
-            ModelPolicy.load(str(run / "final.zip")),
+            ModelPolicy.load(
+                str(run / "final.zip"),
+                cfg.observation.grid_size,
+                cfg.observation.cell_px,
+            ),
             [0],
             max_steps=cfg.max_steps,
             frame_skip=cfg.frame_skip,

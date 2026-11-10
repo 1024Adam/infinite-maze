@@ -102,6 +102,10 @@ def collect_metadata(cfg: ExperimentConfig) -> Dict[str, Any]:
         "seed": cfg.seed,
         "shaping": {"weight": cfg.shaping.weight, "gamma": cfg.shaping.gamma},
         "train_reward_scale": cfg.train_reward_scale,
+        "observation": {
+            "grid_size": cfg.observation.grid_size,
+            "cell_px": cfg.observation.cell_px,
+        },
         "git_commit": git("rev-parse", "HEAD"),
         "git_dirty": git("status", "--porcelain") not in ("", "unknown"),
         "python": platform.python_version(),
@@ -126,6 +130,8 @@ def make_training_env(cfg: ExperimentConfig, start_pace: int) -> VecEnv:
         reward_config=cfg.reward,
         shaping=cfg.shaping,
         reward_scale=cfg.train_reward_scale,
+        grid_size=cfg.observation.grid_size,
+        cell_px=cfg.observation.cell_px,
     )
     return make_vec_env(
         factory,
@@ -263,7 +269,11 @@ class RunCallback(BaseCallback):
     def run_evaluation(self, final: bool = False) -> Dict[str, Any]:
         """Evaluate every eval set, checkpoint, and keep the best model."""
         timesteps = self.model.num_timesteps
-        policy = ModelPolicy(self.model)
+        policy = ModelPolicy(
+            self.model,
+            grid_size=self.cfg.observation.grid_size,
+            cell_px=self.cfg.observation.cell_px,
+        )
         reports = evaluate_sets(self.cfg, policy, self.eval_seeds)
         entry: Dict[str, Any] = {
             "timesteps": timesteps,

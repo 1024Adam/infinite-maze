@@ -431,11 +431,56 @@ programmatic replay of the models, not from watching them.
 
 ### Next step
 
-Shaping as specified should not be repeated. The plan's section 8 candidates apply
-(partial observability): behaviour cloning from `training.oracle_stats
---export-demos` then PPO fine-tuning, a wider raster or recently-visited channel, or
-frame stacking / recurrent PPO. If shaping is revisited, use `gamma` 1 inside `F`
-(no discount leak) or a potential the policy can observe, and re-run the gate with a
-learnability check first. Per the plan, single runs at `seed` 0 are one sample; the
+Shaping as specified is shelved. The plan's section 10
+([plans/04](../plans/04-v2-multi-seed-and-shaped-training.md)) tests the information
+hypothesis first with a minutes-long supervised probe (behaviour cloning plus DAgger
+on oracle labels, sweeping the observation window), and only then changes the
+observation or adds memory for a PPO run. If shaping is revisited, use `gamma` 1
+inside `F` (no discount leak) and check learnability on a short run first. Per the plan, single runs at `seed` 0 are one sample; the
 v2a vs v2b gap (50 return) is larger than v2a's own evaluation noise only on the last
 8 evaluations, so confirm with seeds 1 and 2 before treating v2b as worse.
+
+## Observation probe (plan 4 section 10, in progress)
+
+`python -m training.probe` fits a small network to oracle labels (behaviour cloning
+plus DAgger) on `train_extra` mazes and plays it on the validation seeds with the
+shared `evaluate()`; `--arch cnn` is a control for the network's inductive bias, and
+`--horizon H [H ...]` scores a perfect planner that only looks H columns ahead (no
+fitting). Train seeds 0-19 are held out for action accuracy; validation and test
+seeds are never labelled. The new `train_extra` seed set (3000-3999) is for training
+and probe fitting only.
+
+`--window G [G ...]` scores a **memoryless windowed planner**: perfect knowledge of
+the walls inside a G x G raster, no memory (`windowed.py`). It is the information
+ceiling for a local view. Validation score by window (oracle 1478, heuristic 200):
+9: 174, 15: 218, 21: 504, 31: 839, 45: 1327, 55: 1268. The 9-cell window used so far
+cannot beat the heuristic even for a perfect reader, which explains the v1/v2 stall.
+The DAgger probe itself generalised poorly (validation 11-19), so it is not used to
+decide anything; see plan 4 sections 11 and 12.
+
+## Observation size
+
+`ExperimentConfig.observation = {"grid_size": N, "cell_px": 11}` (default 9) sets
+the raster; the vector is `N*N + 8` floats. A raster may not be wider than the 640 px
+screen, and the observation never contains anything privileged. Models only load with
+the size they were trained with (`ModelPolicy` raises otherwise); pass `--grid-size`
+to `training.evaluate`, `training.overlay` and `oracle_stats --export-demos`.
+`configs/v3a_window31.json` and `configs/v3b_window45.json` train PPO from scratch on
+`train_extra` (3000-3999) with 31 and 45 cell windows; results below.
+
+### v3 results (window 31 / 45, validation, `best`)
+
+| Policy | Mean score | Death rate | Oracle fraction | Ladder |
+|---|---|---|---|---|
+| heuristic | 200.0 | 0% | 13.5% | |
+| v3a window 31 | 171.8 | 16% | 11.6% | rung 0 |
+| v3b window 45 | 141.0 | 32% | 9.5% | rung 0 |
+| oracle | 1477.6 | 2% | 100% | |
+
+Both runs are below the heuristic, below v2a (190) and far below the windowed-planner
+ceilings for their windows (839 / 1327). Path cells gained on validation: 7.1 / 6.8
+(oracle 123). Training and validation scores agree, so it is not memorisation, and
+the value metrics are healthy: the limit is learning, not visibility. Next steps are
+in plan 4 section 14 (clone the windowed planner instead of the full oracle, then CNN
+policy / PPO initialisation). Single runs at seed 0; the replays have not been
+watched in the overlay.
