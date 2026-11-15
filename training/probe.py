@@ -27,7 +27,7 @@ import argparse
 import json
 import sys
 from dataclasses import asdict, dataclass, field
-from multiprocessing import Pool
+import multiprocessing
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -53,6 +53,8 @@ from .reward import RewardFunction
 from .stepping import repeat_action
 
 NUM_ACTIONS = len(game_config.MOVEMENT_CONSTANTS)
+# fork() after torch has started threads can deadlock, so workers start clean.
+POOL_CONTEXT = multiprocessing.get_context("forkserver")
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,8 @@ class ProbeConfig:
     grid_size: int = config.OBS_GRID_SIZE
     cell_px: int = config.OBS_GRID_CELL_PX
     extras: bool = True  # include the rays and scalars next to the raster
+    teacher: str = "oracle"  # "oracle" (full maze) or "windowed" (sees only the window)
+    weight_decay: float = 0.0
     arch: str = "mlp"  # "mlp" (the PPO policy shape) or "cnn" (inductive-bias control)
     hidden: Tuple[int, ...] = config.PROBE_HIDDEN
     betas: Tuple[float, ...] = config.PROBE_BETAS
@@ -81,7 +85,12 @@ class ProbeConfig:
 
     def tag(self) -> str:
         """Short name for output files."""
-        parts = [self.arch, f"g{self.grid_size}", "ext" if self.extras else "grid"]
+        parts = [
+            self.teacher[:3],
+            self.arch,
+            f"g{self.grid_size}",
+            "ext" if self.extras else "grid",
+        ]
         parts.append("h" + "x".join(str(h) for h in self.hidden))
         return "_".join(parts) + f"_s{self.seed}"
 
@@ -234,12 +243,25 @@ class Rollout:
     rng_seed: int
 
 
+def make_teacher(cfg: ProbeConfig) -> OraclePolicy:
+    """The labelling policy: the full oracle, or the planner limited to the window.
+
+    A window-limited teacher only labels what the learner could in principle see,
+    so label noise from plans the window cannot justify is removed.
+    """
+    if cfg.teacher == "windowed":
+        return WindowedPlanner(cfg.grid_size, cfg.cell_px)
+    if cfg.teacher != "oracle":
+        raise ValueError(f"unknown teacher {cfg.teacher!r}")
+    return OraclePolicy()
+
+
 def collect(task: Rollout) -> Batch:
     """Play one episode and label every ``stride``-th visited state with the oracle."""
     cfg = task.cfg
     torch.set_num_threads(1)
     sim = Simulation(seed=task.seed, start_pace=cfg.start_pace, max_steps=cfg.max_steps)
-    oracle = OraclePolicy()
+    oracle = make_teacher(cfg)
     oracle.reset(task.seed)
     reward = RewardFunction()
     rng = np.random.default_rng(task.rng_seed)
@@ -279,7 +301,7 @@ def collect(task: Rollout) -> Batch:
 def collect_many(tasks: Sequence[Rollout], workers: int) -> Batch:
     """Run rollouts (in order, so results do not depend on ``workers``)."""
     if workers > 1:
-        with Pool(workers) as pool:
+        with POOL_CONTEXT.Pool(workers) as pool:
             batches = pool.map(collect, tasks, chunksize=1)
     else:
         batches = [collect(task) for task in tasks]
@@ -298,7 +320,9 @@ def fit(
     torch.manual_seed(cfg.seed * 1009 + round_index)
     model = net.model if net is not None else build_model(cfg)
     model.train()
-    optimiser = torch.optim.Adam(model.parameters(), lr=cfg.learning_rate)
+    optimiser = torch.optim.Adam(
+        model.parameters(), lr=cfg.learning_rate, weight_decay=cfg.weight_decay
+    )
     x = torch.from_numpy(data.x)
     y = torch.from_numpy(data.y)
     loss = torch.tensor(0.0)
@@ -337,7 +361,7 @@ def parallel_evaluate(
     """``evaluate()`` over chunks of seeds in parallel, merged per seed."""
     chunks = [list(seeds[i::workers]) for i in range(workers) if seeds[i::workers]]
     jobs = [(policy, chunk, cfg) for chunk in chunks]
-    with Pool(len(chunks)) as pool:
+    with POOL_CONTEXT.Pool(len(chunks)) as pool:
         reports = pool.starmap(_evaluate_chunk, jobs)
     episodes = sorted(
         (e for report in reports for e in report.episodes),
@@ -537,6 +561,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--grid-size", type=int, default=config.OBS_GRID_SIZE)
     parser.add_argument("--cell-px", type=int, default=config.OBS_GRID_CELL_PX)
     parser.add_argument("--no-extras", action="store_true", help="raster only")
+    parser.add_argument("--teacher", choices=("oracle", "windowed"), default="oracle")
+    parser.add_argument("--weight-decay", type=float, default=0.0)
+    parser.add_argument("--epochs", type=int, default=config.PROBE_EPOCHS)
+    parser.add_argument(
+        "--fit-mazes",
+        type=int,
+        default=len(config.PROBE_FIT_SEEDS),
+        help="number of train_extra mazes (from seed 3000) to fit on",
+    )
     parser.add_argument("--arch", choices=("mlp", "cnn"), default="mlp")
     parser.add_argument("--hidden", type=int, nargs="+", default=config.PROBE_HIDDEN)
     parser.add_argument("--seed", type=int, default=0)
@@ -575,6 +608,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                 cell_px=args.cell_px,
                 extras=not args.no_extras,
                 arch=args.arch,
+                teacher=args.teacher,
+                weight_decay=args.weight_decay,
+                epochs=args.epochs,
                 hidden=tuple(args.hidden),
                 seed=args.seed,
             )
@@ -584,7 +620,9 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     scores: Dict[str, float] = {}
     for cfg in configs:
-        result, policy = run_probe(cfg, args.workers)
+        result, policy = run_probe(
+            cfg, args.workers, fit_seeds=range(3000, 3000 + args.fit_mazes)
+        )
         scores[cfg.tag()] = result.validation["mean_score"]
         payload = result.to_dict()
         payload["reference"] = reference

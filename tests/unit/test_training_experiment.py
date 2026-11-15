@@ -123,10 +123,31 @@ class TestShapingConfig:
         assert cfg.shaping.weight == 0.0
         assert cfg.train_reward_scale == 1.0
 
+    def test_shaping_gamma_one_is_allowed_but_above_one_is_not(self):
+        ExperimentConfig.from_dict(valid(shaping={"weight": 44.0, "gamma": 1.0}))
+        with pytest.raises(ValueError, match="gamma"):
+            ExperimentConfig.from_dict(valid(shaping={"weight": 44.0, "gamma": 1.1}))
+
     def test_gamma_is_only_checked_when_shaping_is_on(self):
         ExperimentConfig.from_dict(
             valid(shaping={"weight": 0.0, "gamma": 0.9}, ppo={"gamma": 0.995})
         )
+
+    def test_v5_configs_differ_from_v4a_only_by_shaping_and_gate_length(self):
+        base = load_experiment_config(CONFIG_DIR / "v4a_cnn31.json").to_dict()
+        full = load_experiment_config(CONFIG_DIR / "v5a_shaped_g1_cnn31.json")
+        gate = load_experiment_config(CONFIG_DIR / "v5a_gate_500k.json")
+
+        for cfg, extra in (
+            (full, ()),
+            (gate, ("total_timesteps", "eval_every_timesteps")),
+        ):
+            left, right = dict(base), cfg.to_dict()
+            for key in ("name", "shaping") + extra:
+                left.pop(key)
+                right.pop(key)
+            assert left == right
+            assert (cfg.shaping.weight, cfg.shaping.gamma) == (44.0, 1.0)
 
     def test_v2_configs_differ_only_by_shaping_weight(self):
         control = load_experiment_config(CONFIG_DIR / "v2a_multiseed_control.json")
@@ -181,3 +202,16 @@ class TestObservationConfig:
     def test_invalid_observation_is_rejected(self, observation):
         with pytest.raises(ValueError):
             ExperimentConfig.from_dict(valid(observation=observation))
+
+
+@pytest.mark.unit
+class TestPolicyFeatures:
+    def test_features_default_to_mlp_and_unknown_values_are_rejected(self):
+        assert ExperimentConfig.from_dict(valid()).ppo.features == "mlp"
+        with pytest.raises(ValueError, match="features"):
+            ExperimentConfig.from_dict(valid(ppo={"features": "transformer"}))
+
+    def test_cnn_config_loads(self):
+        cfg = load_experiment_config(CONFIG_DIR / "v4a_cnn31.json")
+
+        assert cfg.ppo.features == "cnn" and cfg.observation.grid_size == 31

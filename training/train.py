@@ -142,6 +142,17 @@ def make_training_env(cfg: ExperimentConfig, start_pace: int) -> VecEnv:
     )
 
 
+def policy_kwargs(cfg: ExperimentConfig) -> Dict[str, Any]:
+    """Network settings: ``net_arch`` heads, plus the CNN extractor when asked."""
+    kwargs: Dict[str, Any] = {"net_arch": list(cfg.ppo.net_arch)}
+    if cfg.ppo.features == "cnn":
+        from .features import MazeCNN
+
+        kwargs["features_extractor_class"] = MazeCNN
+        kwargs["features_extractor_kwargs"] = {"grid_size": cfg.observation.grid_size}
+    return kwargs
+
+
 def build_model(cfg: ExperimentConfig, env: VecEnv) -> PPO:
     """A fresh PPO model from the config."""
     ppo = cfg.ppo
@@ -156,7 +167,7 @@ def build_model(cfg: ExperimentConfig, env: VecEnv) -> PPO:
         ent_coef=ppo.ent_coef,
         n_epochs=ppo.n_epochs,
         clip_range=ppo.clip_range,
-        policy_kwargs={"net_arch": list(ppo.net_arch)},
+        policy_kwargs=policy_kwargs(cfg),
         seed=cfg.seed,
         device="cpu",
         verbose=1,

@@ -71,6 +71,7 @@ class PPOConfig:
     """PPO hyper-parameters (starting points, not tuned values)."""
 
     policy: str = "MlpPolicy"
+    features: str = "mlp"  # "mlp" (flat input) or "cnn" (convolutions over the raster)
     net_arch: List[int] = field(default_factory=lambda: [64, 64])
     n_steps: int = 512
     batch_size: int = 256
@@ -123,15 +124,23 @@ class ExperimentConfig:
             raise ValueError("start_pace must not be negative")
         self.reward.validate(self.max_steps)
         self.observation.validate()
+        if self.ppo.features not in ("mlp", "cnn"):
+            raise ValueError(
+                f"ppo.features must be 'mlp' or 'cnn': {self.ppo.features!r}"
+            )
         if self.shaping.weight < 0:
             raise ValueError("shaping.weight must not be negative")
         if self.train_reward_scale <= 0:
             raise ValueError("train_reward_scale must be positive")
-        # Only enforced when shaping is on, so older configs keep loading.
-        if self.shaping.weight > 0 and self.shaping.gamma != self.ppo.gamma:
+        # Only enforced when shaping is on, so older configs keep loading. gamma 1
+        # is allowed: the shaping term then telescopes to pure progress and adds
+        # no state-dependent offset to the per-step reward (plan 4 section 17).
+        if self.shaping.weight > 0 and not (
+            0 < self.shaping.gamma <= 1 and self.shaping.gamma >= self.ppo.gamma
+        ):
             raise ValueError(
-                f"shaping.gamma ({self.shaping.gamma}) must equal "
-                f"ppo.gamma ({self.ppo.gamma})"
+                f"shaping.gamma ({self.shaping.gamma}) must be in "
+                f"[ppo.gamma ({self.ppo.gamma}), 1]"
             )
         resolve_seeds(self.train_seeds)
         for seeds in self.eval_seeds.values():

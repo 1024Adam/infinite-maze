@@ -1,6 +1,6 @@
 # Plan 4 — v2 Training: Multi-Seed and Oracle-Shaped Reward
 
-Status: v2 and v3 run (all rung 0); learning, not visibility, is the limit; next steps in sections 13-14
+Status: v2-v4a run (all rung 0); shaping re-test v5a gate ready to launch (sections 13-17)
 Scope: fix the two causes of the `v1_fixed_seed0` stall (one training maze; a reward that pays for entering dead ends) and measure each fix separately. Everything is under `training/`; no change to `infinite_maze/`.
 Prerequisites: [Plan 3](./03-ml-readiness-and-first-training-run.md) implemented (it is) and `v1_fixed_seed0` finished (it is).
 Owner: `ml-dev`. Long runs are launched by the user.
@@ -393,3 +393,74 @@ The cheap lever left that the data already points to is a better learner for the
 4. Whatever runs: repeat the best configuration at `seed` 1 and 2 before concluding, and still watch best and worst replays with `python -m training.overlay --replay <file> --grid-size 31`.
 
 Not recommended now: more PPO steps on the same setup (v3a's slow upward trend is not a path to the 839 ceiling), or a 55-cell window (the ceiling is flat past 45).
+
+## 15. Progress log: windowed-teacher probe failed; CNN PPO run prepared
+
+CI parity green (black, flake8, mypy; `pytest -m "not slow and not performance"` 1241 passed; slow training tests 7 passed). `infinite_maze/` unchanged.
+
+**Step 1 done, negative.** `training.probe --teacher windowed` (labels from `WindowedPlanner`, 31-cell window, MLP 64x64, 400 `train_extra` mazes, 4 DAgger rounds): validation score 21, 100% deaths, fit-seed score 43. Closed-loop accuracy of the learner on held-out mazes was 4.5% after plain cloning and 37.5% after four DAgger rounds (decision states 3% to 28%). So removing unjustifiable labels did not rescue cloning: the oracle-label probe and the windowed-label probe both fail in closed loop, even though per-state accuracy on teacher-visited states is 70-80%. Reading (untested): the controller needs pixel-accurate lane keeping (a 10 px player in a 22 px corridor), so small action errors compound; a handful of DAgger rounds on a flat MLP is not enough. Cloning-based initialisation (R4 as written) is therefore **dropped for now**; I did not run the CNN probe on 1000 mazes, since the failure mode is closed-loop error compounding, not the window or the data size, and each such probe costs 10-20 minutes.
+
+Also fixed: probe worker pools now use `forkserver`; a `fork()` after torch had started threads deadlocked one run (load average near 0, no output).
+
+**Step 3 prepared (user launches).** `ppo.features: "cnn"` (new, default `"mlp"`; old configs load unchanged) selects `training/features.py::MazeCNN`: three convolutions (16/32/32 channels, two strided) over the raster, concatenated with the rays and scalars, a 128-wide linear layer, then the usual `[64, 64]` heads. Same observation, same reward, same everything else as v3a: `v4a_cnn31.json` differs from `v3a_window31.json` only by `ppo.features`. `smoke_v4.json` passes. Cost: about 318 steps/s with 8 environments (torch pinned to one thread for reproducibility), so **5M steps is about 4.4 hours**; run it overnight. The v3a MLP ran at a similar budget in far less time.
+
+```bash
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy poetry run python -m training.train \
+  --config training/configs/v4a_cnn31.json 2>&1 | tee training/runs/v4a_cnn31.log
+poetry run python -m training.expert --run training/runs/v4a_cnn31 --model best
+```
+
+Reading the result (hypotheses to test, single seed):
+
+| v4a validation score | Meaning | Next |
+|---|---|---|
+| >= 400 and beating v3a (172) clearly | Representation was the bottleneck | Repeat at seeds 1 and 2; try window 45 with the CNN; independence check (10.4) |
+| 172-400 | CNN helps a little; compute or reward credit assignment is the limit | Longer run, or revisit shaping with `gamma` 1 now that the learner can see the window |
+| <= 172 | The limit is neither window nor network; it is the dead-end credit assignment under this reward | Shaping re-test with a learner that can read the window (D11 revisited), or a staged curriculum on maze difficulty |
+
+Not yet done: independence check (10.4) at `start_pace` 1, best/worst replays in the overlay (`--grid-size 31`), seeds 1 and 2.
+
+## 16. Outcome of v4a (CNN, window 31): no improvement; learner design is not the bottleneck
+
+`v4a_cnn31` (v3a with `ppo.features: "cnn"`), 5M steps, seed 0, `best` on validation. Ladder: **rung 0** on both sets.
+
+| Run | Validation score | Death rate | Oracle fraction | Path cells gained | No progress > 1000 ticks |
+|---|---|---|---|---|---|
+| heuristic | 200 | 0% | 13.5% | 8.1 | 25/50 |
+| v3a (MLP, 31) | 172 | 16% | 11.6% | 7.1 | 24/50 |
+| v4a best (CNN, 31) | 159 | 16% | 10.8% | 6.3 | 15/50 |
+| v4a final | 130 | 44% | 8.8% | 5.2 | 13/50 |
+| oracle | 1478 | 2% | 100% | 123 | 0/50 |
+
+`train_extra` score 130 (heuristic 204), so not memorisation. Training score rose slowly (144 at 0.5M to about 220 at 5M) with healthy `value_loss` (0.04-0.12) and `explained_variance` 0.6-0.85, but validation evaluations stayed at 97-159 with ~±30 noise. This is inside the plan's "172 or below" row (my prior estimate for it was about 45%).
+
+Reading: a convolutional extractor on the 31-cell window did not beat the MLP, the 9-cell window, or the heuristic. The learner can see (ceiling 839), the representation now has the right structure, the value function fits, and the policy still stops after about 6 path cells like every previous run. By elimination the limit is **credit assignment under the v1 reward** (+22 per cell into a dead end, no pay for the detour; exploration rarely stumbles on the multi-cell detour) rather than window, data volume or network design. Still untested: longer training, a different seed, and the reward itself.
+
+Next (proposed, decide before running): re-test potential shaping with the fixes the v2b analysis called for, now that the learner can read the window. Specifically `shaping.gamma` = 1 inside `F` (no discount-leak term, so the shaped return is pure progress; PPO's own `gamma` stays 0.995), `weight` 44 and `train_reward_scale` 0.05 as before, CNN policy, window 31. `shaping.gamma == ppo.gamma` validation would need to allow this (validate gamma in (0, 1] instead). Gate before spending hours: a 500k-step run (about 25 min at 318 steps/s) whose validation score must clearly exceed v4a's at the same step (about 130-160); if not, stop. This is the one cheap, well-motivated experiment left; if it fails too, the remaining options are a maze-difficulty curriculum or demonstrations injected into the PPO buffer, and the honest conclusion may be that this reward-only setup cannot exceed the heuristic in the budget available.
+
+## 17. Progress log: shaping re-test (v5a) prepared
+
+CI parity green (black, flake8, mypy; `pytest -m "not slow and not performance"` 1246 passed; slow training tests 8 passed). `infinite_maze/` unchanged.
+
+Changes: `ExperimentConfig` now accepts `shaping.gamma` in `[ppo.gamma, 1]` when `weight > 0` (it used to require equality). Why gamma 1: with `shaping.gamma == ppo.gamma` the per-step shaped reward is `delta_progress + weight * (1 - gamma) * d`, a large positive term that depends on the distance to the goal, which the observation cannot show (v2b: `value_loss` 40-1000). With `gamma` 1 the term telescopes to pure progress (`F = phi(after) - phi(before)`), so per-step rewards stay small and unbiased by `d`; it is slightly off-policy-invariant because PPO still discounts at 0.995, which only mildly changes the weighting of far-future progress.
+
+Reward-ordering gate with `--gamma 1` (train seeds 0-19, weight 44, scale 0.05): oracle 354.0 > heuristic 11.7 > right -2.3 > random -5.1 (undiscounted training return, which is what the gate ranks when `gamma` is 1; with v2b's setting the undiscounted sum ranked the heuristic above the oracle). The ordering holds and the magnitudes are modest. As in section 5 of the plan, passing the gate does not prove learnability.
+
+Configs (all differ from `v4a_cnn31.json` only in `shaping = {weight 44, gamma 1.0}`; the gate also differs in length):
+
+| Config | Purpose | Cost |
+|---|---|---|
+| `v5a_gate_500k.json` | **Gate**: 500k steps, eval every 125k | about 25 min |
+| `v5a_shaped_g1_cnn31.json` | Full run, 5M steps, only if the gate passes | about 4.4 h |
+| `smoke_v5.json` | Pipeline smoke (passes in the slow suite) | about 20 s |
+
+Launch the gate first (user):
+
+```bash
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy poetry run python -m training.train \
+  --config training/configs/v5a_gate_500k.json 2>&1 | tee training/runs/v5a_gate_500k.log
+```
+
+Gate criterion, set before seeing results: compare validation score at 500k with v4a at the same step (validation 143, `train_extra` 120; v4a evaluations at 250k-1.25M were 115-159, noise about +/-30). Pass = validation score at 500k of 250 or more, or a clear upward trend across the four evaluations (125k, 250k, 375k, 500k) ending above 200 (the heuristic). Anything within the v4a band is a fail: stop shaping and take the remaining options (section 16). Also read `value_loss` and `explained_variance` in `metrics.csv` (v2b's failure signature was `value_loss` far above 1), and note that `ep_return_mean` is now the shaped, scaled return (roughly progress in cells times 2.2).
+
+If the gate passes: launch the full run, then repeat at seed 1 before drawing conclusions, then the independence check (10.4) and the overlay review of best and worst replays (`--grid-size 31`).

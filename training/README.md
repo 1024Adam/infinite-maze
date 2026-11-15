@@ -484,3 +484,22 @@ the value metrics are healthy: the limit is learning, not visibility. Next steps
 in plan 4 section 14 (clone the windowed planner instead of the full oracle, then CNN
 policy / PPO initialisation). Single runs at seed 0; the replays have not been
 watched in the overlay.
+
+## CNN policy and probe teachers
+
+`ppo.features: "cnn"` swaps PPO's flat input for `features.MazeCNN` (strided
+convolutions over the raster, rays and scalars joined before the heads); default
+`"mlp"`. `configs/v4a_cnn31.json` is v3a with only that change (about 4.4 h for 5M
+steps at 318 steps/s, 8 envs). Result: validation score 159 (best; death 16%), rung 0, no better than the MLP at 31 cells (172) or 9 cells (190); see plan 4 section 16. `training.probe
+--teacher windowed` labels with the window-limited planner instead of the oracle; it
+did not rescue behaviour cloning (validation 21), see plan 4 section 15.
+
+## Shaping re-test (v5a)
+
+`shaping.gamma` may now be anything in `[ppo.gamma, 1]`. With `gamma` 1 the shaping
+term telescopes to pure progress, so the per-step reward has no large, unobservable
+distance-dependent offset (the suspected v2b failure). The gate
+`python -m training.shaping_check --gamma 1` ranks oracle 354 > heuristic 12 > right
+-2 > random -5. `configs/v5a_gate_500k.json` (about 25 min) is the cheap gate;
+`configs/v5a_shaped_g1_cnn31.json` (about 4.4 h) is the full run, to be launched only
+if the gate passes. Criterion and results: plan 4 section 17. Not measured yet.

@@ -13,12 +13,19 @@ pytest.importorskip("torch")
 from training.evaluate import evaluate  # noqa: E402
 from training.experiment import ExperimentConfig, load_experiment_config  # noqa: E402
 from training.model_policy import ModelPolicy  # noqa: E402
-from training.train import METRIC_COLUMNS, prepare_run_dir, train  # noqa: E402
+from training.train import (  # noqa: E402
+    METRIC_COLUMNS,
+    make_training_env,
+    prepare_run_dir,
+    train,
+)
 
 CONFIG_DIR = Path(__file__).resolve().parents[2] / "training" / "configs"
 SMOKE = CONFIG_DIR / "smoke.json"
 SMOKE_V2 = CONFIG_DIR / "smoke_v2.json"
 SMOKE_V3 = CONFIG_DIR / "smoke_v3.json"
+SMOKE_V4 = CONFIG_DIR / "smoke_v4.json"
+SMOKE_V5 = CONFIG_DIR / "smoke_v5.json"
 
 
 def tiny_config(**overrides):
@@ -54,7 +61,9 @@ class TestRunDirectory:
 @pytest.mark.integration
 class TestSmokeRun:
     @pytest.mark.parametrize(
-        "path", [SMOKE, SMOKE_V2, SMOKE_V3], ids=["v1", "v2_shaped", "v3_window31"]
+        "path",
+        [SMOKE, SMOKE_V2, SMOKE_V3, SMOKE_V4, SMOKE_V5],
+        ids=["v1", "v2_shaped", "v3_window31", "v4_cnn31", "v5_shaped_g1"],
     )
     def test_smoke_run_writes_every_artefact_and_the_model_is_evaluable(
         self, tmp_path, path
@@ -115,3 +124,36 @@ class TestTrainingEnvShaping:
         for reward, info in zip(rewards, infos):
             expected = (info["base_reward"] + info["shaping_reward"]) * 0.05
             assert reward == pytest.approx(expected, rel=1e-5)
+
+
+@pytest.mark.unit
+class TestCnnExtractor:
+    def test_extractor_maps_the_flat_observation_to_features(self):
+        import torch
+
+        from training.features import FEATURES_DIM, MazeCNN
+        from training.observation import observation_size
+
+        env = make_training_env(
+            tiny_config(observation={"grid_size": 15}, ppo={"features": "cnn"}), 0
+        )
+        try:
+            extractor = MazeCNN(env.observation_space, grid_size=15)
+        finally:
+            env.close()
+
+        batch = torch.zeros((3, observation_size(15)))
+
+        assert extractor(batch).shape == (3, FEATURES_DIM)
+
+    def test_cnn_policy_kwargs_name_the_extractor(self):
+        from training.features import MazeCNN
+        from training.train import policy_kwargs
+
+        cfg = tiny_config(observation={"grid_size": 15}, ppo={"features": "cnn"})
+
+        kwargs = policy_kwargs(cfg)
+
+        assert kwargs["features_extractor_class"] is MazeCNN
+        assert kwargs["features_extractor_kwargs"] == {"grid_size": 15}
+        assert "features_extractor_class" not in policy_kwargs(tiny_config())
