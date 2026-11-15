@@ -2,7 +2,7 @@
 name: run-experiment
 description: "Prepare and report on a reproducible Infinite Maze training experiment. Use when: launching or reviewing a PPO/RL training run, pinning an experiment config, running baselines and smoke tests before a long run, or summarising a finished run against baselines and the expert ladder."
 ---
-Run an experiment for Infinite Maze following these steps. Follow the `ml-dev` agent conventions and `plans/03-ml-readiness-and-first-training-run.md`.
+Run an experiment for Infinite Maze following these steps. Follow the `ml-dev` agent conventions and the active plan, `plans/05-cell-level-learnability.md`.
 
 Inputs (ask for any that are missing): the experiment config path under `training/configs/`, and whether this is a **prepare** run (before launch) or a **report** run (after the user's long run finished, with the run directory under `training/runs/`).
 

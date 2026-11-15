@@ -1,6 +1,6 @@
 # Plan 4 — v2 Training: Multi-Seed and Oracle-Shaped Reward
 
-Status: v2-v4a run (all rung 0); shaping re-test v5a gate ready to launch (sections 13-17)
+Status: closed. v2-v5a gate run (all rung 0, shaping shelved after two failures); superseded by [Plan 5](./05-cell-level-learnability.md), which replaces the options in section 18
 Scope: fix the two causes of the `v1_fixed_seed0` stall (one training maze; a reward that pays for entering dead ends) and measure each fix separately. Everything is under `training/`; no change to `infinite_maze/`.
 Prerequisites: [Plan 3](./03-ml-readiness-and-first-training-run.md) implemented (it is) and `v1_fixed_seed0` finished (it is).
 Owner: `ml-dev`. Long runs are launched by the user.
@@ -464,3 +464,41 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy poetry run python -m training.train 
 Gate criterion, set before seeing results: compare validation score at 500k with v4a at the same step (validation 143, `train_extra` 120; v4a evaluations at 250k-1.25M were 115-159, noise about +/-30). Pass = validation score at 500k of 250 or more, or a clear upward trend across the four evaluations (125k, 250k, 375k, 500k) ending above 200 (the heuristic). Anything within the v4a band is a fail: stop shaping and take the remaining options (section 16). Also read `value_loss` and `explained_variance` in `metrics.csv` (v2b's failure signature was `value_loss` far above 1), and note that `ep_return_mean` is now the shaped, scaled return (roughly progress in cells times 2.2).
 
 If the gate passes: launch the full run, then repeat at seed 1 before drawing conclusions, then the independence check (10.4) and the overlay review of best and worst replays (`--grid-size 31`).
+
+## 18. Outcome of the v5a gate: FAIL. Shaping stops here.
+
+`v5a_gate_500k` (CNN, window 31, shaping weight 44 with `gamma` 1, 500k steps, seed 0). Evaluation history:
+
+| Steps | Validation score | Validation deaths | Train-extra-20 score |
+|---|---|---|---|
+| 125k | 54 | 94% | 59 |
+| 250k | 63 | 88% | 52 |
+| 375k | 18 | 100% | 10 |
+| 500k | 41 | 94% | 34 |
+| v4a (no shaping) at 500k | 143 | 32% | 120 |
+
+Against the criterion fixed in section 17 (pass: 250+ at 500k, or a rise ending above 200): **fail**, by a wide margin. It is worse than the unshaped control at every comparable step and never trends upward. The final model dies in 24 of 25 validation episodes, deterministic or stochastic (score 43 / 67), so it is not an argmax artefact.
+
+Training metrics: `value_loss` 0.6-1.0 (no v2b-style blow-up, so the large-offset explanation for v2b is not what is left here), but `explained_variance` only 0.2-0.4 (v4a: 0.6-0.85) and training score stuck at 77-99. The policy keeps a broad action mix (idle 15%, down 23%, left 17% under sampling).
+
+Reading, hedged: removing the discount-leak offset did not make shaping work. The shaped signal pays little for the first cells of the correct route relative to the default drift (a +/-1 cell move is about 2 scaled reward units, and the `-5` death penalty is small next to it) and the agent learns to dither near spawn and die. I did not isolate which component is responsible and will not spend more compute on it: two shaping variants (v2b and v5a) are both worse than their unshaped controls. D11 stands: shaping is shelved.
+
+Cumulative picture after v1-v5a (every learner at rung 0, validation score 130-190 against a heuristic at 200 and an oracle at 1478):
+
+| Cause | Status |
+|---|---|
+| One training maze (v1) | Ruled out as the only cause: v2a memorised less but stalled the same |
+| Window too small | Real but not the limit: a perfect memoryless reader of 9 cells is stuck at 174; of 31 cells reaches 839 |
+| Network design | Ruled out for now: MLP and CNN at 31 cells score alike (172 vs 159) |
+| Cloning the oracle | Failed in closed loop (validation 11-21) with the oracle or the window-limited teacher |
+| Shaped reward | Failed twice (v2b, v5a) |
+| Not tested | Longer training, seeds 1-2, other algorithms, curriculum, demonstrations in the PPO buffer, lower-level action space |
+
+Observation on the evidence: the unshaped learners reproduce the 9-cell heuristic's behaviour regardless of input and network, which suggests the exploration problem (finding a multi-cell detour from random play with a drift-right reward) rather than representation. Options that attack exploration directly, in my order of preference (each needs a decision from you, none started):
+
+1. **Curriculum on maze difficulty or start position**: spawn the agent at random cells along the oracle's path (privileged for the environment reset only; the observation stays honest) so it experiences detours and later stages from the beginning instead of needing to survive the first dead end. Cheap to implement in `MazeEnv` (a `start_offset` option from a precomputed oracle path), and a direct test of the exploration hypothesis. Evaluation must still start at the real spawn.
+2. **Demonstrations in the PPO buffer or auxiliary BC loss** (cloning failed alone, but as a regulariser during PPO it avoids the closed-loop compounding because PPO corrects it).
+3. **Intrinsic exploration bonus** (count-based on visited cells) - needs a visited-cell tracker in the env.
+4. Accept the result: with this reward and budget, PPO matches the heuristic but does not exceed it, and report that.
+
+Superseded: the review in [Plan 5](./05-cell-level-learnability.md) section 1 found the common cause across v1-v5a to be the pixel-level action interface (never varied). Plan 5 tests navigation with cell-level actions first, and folds options 1 and 3 above into its lever ladder.

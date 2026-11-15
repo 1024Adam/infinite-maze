@@ -502,4 +502,4 @@ distance-dependent offset (the suspected v2b failure). The gate
 `python -m training.shaping_check --gamma 1` ranks oracle 354 > heuristic 12 > right
 -2 > random -5. `configs/v5a_gate_500k.json` (about 25 min) is the cheap gate;
 `configs/v5a_shaped_g1_cnn31.json` (about 4.4 h) is the full run, to be launched only
-if the gate passes. Criterion and results: plan 4 section 17. Not measured yet.
+if the gate passes. **Gate failed**: validation score 18-63 with 88-100% deaths at 125k-500k steps (v4a unshaped: 143 at 500k). The full v5a run must not be launched; shaping is shelved. See plan 4 section 18.

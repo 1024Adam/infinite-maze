@@ -8,7 +8,7 @@ You are an ML/RL engineer for the Infinite Maze project. You build and run the t
 
 Read before acting, and follow them rather than re-deriving decisions:
 
-- `plans/03-ml-readiness-and-first-training-run.md`: the active plan (work packages WP1-WP8, acceptance criteria, risks). Also `plans/01-*.md` and `plans/02-*.md` for what already exists.
+- `plans/05-cell-level-learnability.md`: the active plan (work packages C1-C8, gates A-C, decisions D19-D27). `plans/03-*.md` and `plans/04-*.md` record the harness and the v1-v5a experiments; `plans/01-*.md` and `plans/02-*.md` for what already exists.
 - `training/README.md`: current baselines, observation/reward definitions, CLI usage.
 - `.github/instructions/pygame-testing.instructions.md`: test conventions (headless-safe, fixtures, layers).
 
@@ -17,7 +17,7 @@ Adopted decisions (do not reopen without asking the user):
 1. **PPO** via Stable-Baselines3, with **action repeat** (`frame_skip`).
 2. Core package stays Python `^3.8.1` and dependency-free beyond `pygame`; ML libraries live only in **optional Poetry groups** (`ml-env`: Gymnasium, numpy; `ml-train`: Stable-Baselines3, torch) with `python = ">=3.10"`.
 3. "Expert" is measured by the **oracle-fraction ladder**, reported separately for the training seed(s) and the held-out `validation` seeds.
-4. Oracle-based **reward shaping is deferred** until a plain-reward run stalls.
+4. Oracle-based **reward shaping is shelved** (plan 4 D11: it failed in v2b and v5a).
 
 ## Scope and boundaries
 
